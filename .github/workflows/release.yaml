@@ -20,44 +20,17 @@ permissions:
   contents: write
   packages: write
   issues: write
+  packages: write
 
 jobs:
-  tag:
-    name: Create and Push Tag
-    runs-on: ubuntu-24.04
-    outputs:
-      output1: ${{ steps.version.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get version
-        id: version
-        run:  |
-          source version
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Set up Git
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-
-      - name: Create Tag
-        run: |
-          git tag -a ${{ env.VERSION }} -m "Release Version ${{ env.VERSION }}"
-          git push origin ${{ env.VERSION }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   release:
     name: Release promgithub
-    needs: tag
     runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.tag.outputs.version }}
+          ref: main
 
       - name: Set up Golang
         uses: actions/setup-go@v5
@@ -65,10 +38,22 @@ jobs:
           go-version: 1.22.5
         id: go
 
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
       - name: Get version
         run:  |
           source version
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Create Tag
+        run: |
+          git tag -a ${{ env.VERSION }} -m "Release Version ${{ env.VERSION }}"
+          git push origin ${{ env.VERSION }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build
         run: make build
