@@ -17,12 +17,12 @@ help:
 mkdir:
 	@mkdir -p $(BUILDDIR)
 
-go-version: ## Get the Go version from go.mod
-	@grep '^go ' go.mod | awk '{print $$2}'
-
 mod: ## Update go modules
 	@go mod tidy
 	@go mod verify
+
+go-version: ## Get the Go version from go.mod
+	@grep '^go ' go.mod | awk '{print $$2}'
 
 build: ## Build promgithub service binary
 build: CGO_ENABLED := 0
@@ -40,8 +40,9 @@ cross-platform: mkdir
 		GOOS=linux GOARCH=$$GOARCH $(MAKE) TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) build; \
 	done
 
-test: GITHUB_WEBHOOK_SECRET := test-secret
 test: ## Run unit tests
+test: PROMGITHUB_WEBHOOK_SECRET := test-secret
+test:
 	@go test -v $(SRC)
 
 lint: ## Run linter
