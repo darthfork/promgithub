@@ -35,7 +35,7 @@ jobs:
         uses: actions/setup-go@v5
         id: go
         with:
-          go-version: ${{ steps.go_version.outputs.GOVERSION }}
+          go-version: ${{ env.GOVERSION }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
