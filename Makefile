@@ -3,11 +3,12 @@
 include version
 
 .DEFAULT_GOAL	:= help
-TARGET		:= promgithub
-SRC		:= ./...
-LDFLAGS		:= -X main.Version=$(VERSION) -s -w
-LDFLAGS_DBG	:= -X main.Version=$(VERSION)
-BUILDDIR	:= build
+TARGET			:= promgithub
+SRC				:= ./...
+LDFLAGS			:= -X main.Version=$(VERSION) -s -w
+LDFLAGS_DBG		:= -X main.Version=$(VERSION)
+BUILDDIR		:= build
+REGISTRY		:= ghcr.io/darthfork
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -24,6 +25,9 @@ debug: ## Build promgithub service binary with debug information
 debug: LDFLAGS := $(LDFLAGS_DBG)
 debug: TARGET := $(TARGET)-debug
 debug: all
+
+container: ## Build promgithub service container
+	@docker build --progress=plain -t $(REGISTRY)/$(TARGET):$(VERSION) .
 
 test: GITHUB_WEBHOOK_SECRET := test-secret
 test: ## Run unit tests
