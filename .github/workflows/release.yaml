@@ -25,14 +25,17 @@ jobs:
   tag:
     name: Create and Push Tag
     runs-on: ubuntu-24.04
-
+    outputs:
+      output1: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Get version
+        id: version
         run:  |
           source version
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Set up Git
         run: |
@@ -53,6 +56,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.version }}
 
       - name: Set up Golang
         uses: actions/setup-go@v5
@@ -68,12 +73,10 @@ jobs:
       - name: Build
         run: make build
 
-      - name: Generate Changelog
-        run: |
-          gem install github_changelog_generator
-          github_changelog_generator -u ${{ env.USERNAME }} -p ${{ env.REPO }}
-        env:
-          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Generate changelog"
+        uses: janheinrichmerker/action-github-changelog-generator@v2.3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
