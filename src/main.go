@@ -95,7 +95,17 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
 	defer logger.Sync()
+}
+
+func healthCheck(w http.ResponseWriter, r *http.Request) {
+	response := HealthCheckResposne{Status: "ok", Version: Version}
+	err := json.NewEncoder(w).Encode(response)
+	if err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func main() {
@@ -113,10 +123,7 @@ func main() {
 	r := mux.NewRouter()
 	r.Use(APIHandler(logger))
 
-	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		response := HealthCheckResposne{Status: "ok", Version: Version}
-		json.NewEncoder(w).Encode(response)
-	}).Methods("GET")
+	r.HandleFunc("/health", healthCheck).Methods("GET")
 
 	r.Handle("/metrics", promhttp.Handler())
 
