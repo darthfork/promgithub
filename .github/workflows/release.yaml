@@ -28,8 +28,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Set up Golang
         uses: actions/setup-go@v5
@@ -37,16 +35,16 @@ jobs:
           go-version: 1.22.5
         id: go
 
+      - name: Get version
+        shell: bash
+        run: |
+          source version
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       - name: Set up Git
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-
-      - name: Get version
-        shell: bash
-        run:  |
-          source version
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Create Tag
         run: |
