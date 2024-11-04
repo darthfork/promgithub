@@ -1,4 +1,4 @@
-FROM golang:1.22.5 AS builder
+FROM golang:1.23.2 AS builder
 
 ENV GOOS=linux
 
@@ -7,6 +7,8 @@ WORKDIR /app
 COPY . .
 
 RUN make mod
+
+RUN make test
 
 RUN make build
 
@@ -17,8 +19,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN groupadd -r promgithub &&\
     useradd -md /bin/bash --no-log-init -r -g promgithub promgithub
 
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
+RUN apt-get update && apt-get install -y ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
