@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strings"
 	"time"
@@ -29,7 +30,8 @@ var (
 	githubWebhookSecret []byte
 	logger              *zap.Logger
 	debug               bool
-	apiCallsCounter     = promauto.NewCounterVec(
+
+	apiCallsCounter = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "promgithub_api_calls_total",
 			Help: "Number of API calls",
@@ -83,7 +85,9 @@ func init() {
 	var err error
 	loggerConfig := zap.NewProductionConfig()
 
-	if os.Getenv("ENVIRONMENT") == "development" {
+	debug = os.Getenv("ENVIRONMENT") == "development"
+
+	if debug {
 		loggerConfig = zap.NewDevelopmentConfig()
 	}
 
@@ -117,6 +121,15 @@ func main() {
 	r.Handle("/metrics", promhttp.Handler())
 
 	r.HandleFunc("/webhook", githubEventsHandler).Methods("POST")
+
+	// Profiling endpoints
+	if debug {
+		r.HandleFunc("/debug/pprof/", pprof.Index)
+		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
 
 	logger.Info("Starting server", zap.String("port", port))
 	if err := http.ListenAndServe(":"+port, r); err != nil {
