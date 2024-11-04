@@ -43,9 +43,9 @@ cross-platform: mkdir
 	GOOS=linux GOARCH=arm64 $(MAKE) TARGET=$(TARGET)-linux-arm64-$(VERSION) build
 
 release: ## Create github release and upload artifacts
-release: cross-platform push-container
+release: push-container cross-platform
 	@gh release create v$(VERSION)\
-		--title "promgithub release v$(VERSION)"\
+		--title "promgithub-v$(VERSION)"\
 		--generate-notes\
 		$(BUILDDIR)/*
 
