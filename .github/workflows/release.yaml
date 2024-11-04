@@ -1,0 +1,108 @@
+name: Release promgithub
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'version'
+  # For testing
+  pull_request:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  USERNAME: darthfork
+  REPO: promgithub
+
+jobs:
+  tag:
+    name: Create and Push Tag
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        run:  |
+          source version
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
+      - name: Create Tag
+        run: |
+          git tag -a ${{ env.VERSION }} -m "Release Version ${{ env.VERSION }}"
+          git push origin ${{ env.VERSION }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    name: Release promgithub
+    needs: tag
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Golang
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22.5
+        id: go
+
+      - name: Get version
+        run:  |
+          source version
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build
+        run: make build
+
+      - name: Generate Changelog
+        run: |
+          gem install github_changelog_generator
+          github_changelog_generator -u ${{ env.USERNAME }} -p ${{ env.REPO }}
+        env:
+          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: https://ghcr.io
+          username: ${{ env.USERNAME }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          registry: https://ghcr.io
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.USERNAME }}/${{ env.REPO }}:${{ env.VERSION }}
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.VERSION }}
+          release_name: v${{ env.VERSION }}
+          body_path: ./CHANGELOG.md
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/promgithub
+          asset_name: promgithub
+          asset_content_type: application/octet-stream
