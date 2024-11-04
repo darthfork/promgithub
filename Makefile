@@ -2,16 +2,16 @@
 
 include version
 
-.DEFAULT_GOAL	:= help
+.DEFAULT_GOAL		:= help
 TARGET			:= promgithub
-SRC				:= ./...
+SRC			:= ./...
 LDFLAGS			:= -X main.Version=$(VERSION) -s -w
 LDFLAGS_DBG		:= -X main.Version=$(VERSION)
 BUILDDIR		:= build
-REGISTRY		:= ghcr.io/darthfork
+REGISTRY		:= ghcr.io/darthfork/promgithub
 
 help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-10s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 mkdir:
 	@mkdir -p $(BUILDDIR)
@@ -26,12 +26,29 @@ debug: LDFLAGS := $(LDFLAGS_DBG)
 debug: TARGET := $(TARGET)-debug
 debug: all
 
-container: ## Build promgithub service container
-	@docker build --progress=plain -t $(REGISTRY)/$(TARGET):$(VERSION) .
+build-container: ## Build promgithub service container
+	@docker build --progress=plain -t $(REGISTRY):$(VERSION) .
+
+push-container: ## Push promgithub service container
+push-container: build-container
+	@docker push $(REGISTRY):$(VERSION)
 
 test: GITHUB_WEBHOOK_SECRET := test-secret
 test: ## Run unit tests
 	@go test -v $(SRC)
+
+cross-platform: ## Create cross-platform binaries
+cross-platform: mkdir
+	GOOS=linux GOARCH=amd64 $(MAKE) TARGET=$(TARGET)-linux-amd64-$(VERSION) build
+	GOOS=linux GOARCH=arm64 $(MAKE) TARGET=$(TARGET)-linux-arm64-$(VERSION) build
+
+release: ## Create github release and upload artifacts
+release: cross-platform push-container
+	@gh release create v$(VERSION)\
+		--title "promgithub release v$(VERSION)"\
+		--generate-notes\
+		$(BUILDDIR)/*
+
 
 coverage: ## Run unit tests with coverage
 	@go test -cover -v $(SRC) -coverprofile=coverage.out
