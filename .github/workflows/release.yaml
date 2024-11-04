@@ -6,9 +6,6 @@ on:
       - main
     paths:
       - 'version'
-  pull_request:
-    branches:
-      - main
 
 env:
   REGISTRY: ghcr.io
@@ -43,11 +40,6 @@ jobs:
         run: |
           source version
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-      - name: Set up Git
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
 
       - name: Build
         run: make build
