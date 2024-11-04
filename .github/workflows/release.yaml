@@ -6,9 +6,6 @@ on:
       - main
     paths:
       - 'version'
-  pull_request:
-    branches:
-      - main
 
 env:
   REGISTRY: ghcr.io
