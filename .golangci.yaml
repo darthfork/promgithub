@@ -12,6 +12,8 @@ linters:
 
 run:
   timeout: 5m
+
+issues:
   skip-dirs:
     - vendor
   skip-files:
