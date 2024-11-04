@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - 'version'
-  # For testing
   pull_request:
     branches:
       - main
@@ -46,13 +45,6 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
 
-      - name: Create Tag
-        run: |
-          git tag -a ${{ env.VERSION }} -m "Release Version ${{ env.VERSION }}"
-          git push origin ${{ env.VERSION }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build
         run: make build
 
@@ -67,9 +59,12 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
+          file: Dockerfile
           registry: https://ghcr.io
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.USERNAME }}/${{ env.REPO }}:${{ env.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Create Release
         id: create_release
@@ -90,5 +85,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build/promgithub
-          asset_name: promgithub
+          asset_name: promgithub-${{ env.VERSION }}-linux-amd64
           asset_content_type: application/octet-stream
