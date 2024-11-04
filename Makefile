@@ -31,7 +31,7 @@ build-container: ## Build promgithub service container
 
 push-container: ## Push promgithub service container
 push-container: build-container
-	@docker build --progress=plain -t $(REGISTRY):$(VERSION) .
+	@docker push $(REGISTRY):$(VERSION)
 
 test: GITHUB_WEBHOOK_SECRET := test-secret
 test: ## Run unit tests
