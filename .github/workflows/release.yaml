@@ -16,6 +16,11 @@ env:
   USERNAME: darthfork
   REPO: promgithub
 
+permissions:
+  contents: write
+  packages: write
+  issues: write
+
 jobs:
   tag:
     name: Create and Push Tag
