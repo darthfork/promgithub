@@ -43,6 +43,7 @@ jobs:
           git config --global user.email "github-actions@github.com"
 
       - name: Get version
+        shell: bash
         run:  |
           source version
           echo "VERSION=$VERSION" >> $GITHUB_ENV
