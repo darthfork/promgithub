@@ -48,6 +48,9 @@ test:
 lint: ## Run linter
 	@golangci-lint run
 
+fmt: ## Format golang source files
+	@go fmt ./...
+
 coverage: ## Run unit tests with coverage
 	@go test -cover -v $(SRC) -coverprofile=coverage.out
 	@go tool cover -html=coverage.out
@@ -67,9 +70,6 @@ release: push-container cross-platform
 		--title "promgithub-v$(VERSION)"\
 		--generate-notes\
 		$(BUILDDIR)/*
-
-fmt: ## Format golang source files
-	@go fmt ./...
 
 clean: ## Clean build directory
 	@rm -rf $(BUILDDIR)
