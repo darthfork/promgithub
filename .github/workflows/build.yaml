@@ -52,6 +52,7 @@ jobs:
         with:
           version: v1.59.1
           only-new-issues: true
+          args: --timeout=30m --config=./.golangci.yaml
 
       - name: Build Container
         run: make container
