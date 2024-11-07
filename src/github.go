@@ -67,6 +67,7 @@ func updateWorkflowMetrics(body []byte) {
 			Conclusion string `json:"conclusion"`
 			CreatedAt  string `json:"created_at"`
 			UpdatedAt  string `json:"updated_at"`
+			HTMLURL    string `json:"html_url"`
 		} `json:"workflow_run"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -80,6 +81,7 @@ func updateWorkflowMetrics(body []byte) {
 		"workflow_name":   payload.Workflow.Name,
 		"workflow_status": payload.Workflow.Status,
 		"conclusion":      payload.Workflow.Conclusion,
+		"workflow_url":    payload.Workflow.HTMLURL,
 	}).Inc()
 
 	// Handle updating the gauges based on workflow status
@@ -143,6 +145,7 @@ func updateJobMetrics(body []byte) {
 			Conclusion  string `json:"conclusion"`
 			StartedAt   string `json:"started_at"`
 			CompletedAt string `json:"completed_at"`
+			HTMLURL     string `json:"html_url"`
 		} `json:"workflow_job"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -158,6 +161,7 @@ func updateJobMetrics(body []byte) {
 		"job_name":       payload.Job.Name,
 		"job_status":     payload.Job.Status,
 		"job_conclusion": payload.Job.Conclusion,
+		"job_url":        payload.Job.HTMLURL,
 	}).Inc()
 
 	// Handle updating the gauges based on job status

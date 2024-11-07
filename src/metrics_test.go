@@ -12,14 +12,14 @@ func TestWorkflowStatusCounter(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	workflowStatusCounter.Reset()
 	reg.MustRegister(workflowStatusCounter)
-	body := []byte(`{"workflow_run": {"id": 1, "status": "completed", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}, "conclusion": "success", "created_at": "2023-01-01T00:00:00Z", "updated_at": "2023-01-01T01:00:00Z"}}`)
+	body := []byte(`{"workflow_run": {"id": 1, "status": "completed", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}, "conclusion": "success", "html_url": "https://github.com/user/repo/actions/runs/1001", "created_at": "2023-01-01T00:00:00Z", "updated_at": "2023-01-01T01:00:00Z"}}`)
 	updateWorkflowMetrics(body)
 
 	// Test counter
 	if err := testutil.CollectAndCompare(workflowStatusCounter, strings.NewReader(`
 		# HELP promgithub_workflow_status Total number of workflow runs with status
 		# TYPE promgithub_workflow_status counter
-		promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1
+		promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",workflow_url="https://github.com/user/repo/actions/runs/1001"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -29,15 +29,15 @@ func TestJobStatusCounter(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	jobStatusCounter.Reset()
 	reg.MustRegister(jobStatusCounter)
-	body := []byte(`{"workflow_job": {"id": 1, "status": "completed", "name": "Job1", "head_branch": "main", "repository": {"full_name": "user/repo"}, "runner_name": "runner1", "conclusion": "success", "started_at": "2023-01-01T00:00:00Z", "completed_at": "2023-01-01T01:00:00Z"}}`)
+	body := []byte(`{"workflow_job": {"id": 1, "status": "completed", "name": "Job1", "head_branch": "main", "repository": {"full_name": "user/repo"}, "runner_name": "runner1", "conclusion": "success", "html_url": "https://github.com/user/repo/actions/jobs/1", "started_at": "2023-01-01T00:00:00Z", "completed_at": "2023-01-01T01:00:00Z"}}`)
 	updateJobMetrics(body)
 
 	// Test counter
 	if err := testutil.CollectAndCompare(jobStatusCounter, strings.NewReader(`
-		# HELP promgithub_job_status Total number of jobs with status
-		# TYPE promgithub_job_status counter
-		promgithub_job_status{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
-	`)); err != nil {
+        # HELP promgithub_job_status Total number of jobs with status
+        # TYPE promgithub_job_status counter
+        promgithub_job_status{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",job_url="https://github.com/user/repo/actions/jobs/1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
+    `)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
@@ -179,10 +179,10 @@ func TestWorkflowCompletedGauge(t *testing.T) {
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(workflowCompletedGauge, strings.NewReader(`
-        # HELP promgithub_workflow_completed Number of workflow runs completed
-        # TYPE promgithub_workflow_completed gauge
-        promgithub_workflow_completed{branch="main",repository="user/repo",workflow_name="CI"} 1
-    `)); err != nil {
+		# HELP promgithub_workflow_completed Number of workflow runs completed
+		# TYPE promgithub_workflow_completed gauge
+		promgithub_workflow_completed{branch="main",repository="user/repo",workflow_name="CI"} 1
+	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
@@ -196,10 +196,10 @@ func TestJobQueuedGauge(t *testing.T) {
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(jobQueuedGauge, strings.NewReader(`
-        # HELP promgithub_job_queued Number of jobs queued
-        # TYPE promgithub_job_queued gauge
-        promgithub_job_queued{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
-    `)); err != nil {
+		# HELP promgithub_job_queued Number of jobs queued
+		# TYPE promgithub_job_queued gauge
+		promgithub_job_queued{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
+	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
@@ -213,10 +213,10 @@ func TestJobInProgressGauge(t *testing.T) {
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(jobInProgressGauge, strings.NewReader(`
-        # HELP promgithub_job_in_progress Number of jobs in progress
-        # TYPE promgithub_job_in_progress gauge
-        promgithub_job_in_progress{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
-    `)); err != nil {
+		# HELP promgithub_job_in_progress Number of jobs in progress
+		# TYPE promgithub_job_in_progress gauge
+		promgithub_job_in_progress{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
+	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
@@ -230,10 +230,10 @@ func TestJobCompletedGauge(t *testing.T) {
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(jobCompletedGauge, strings.NewReader(`
-        # HELP promgithub_job_completed Number of jobs completed
-        # TYPE promgithub_job_completed gauge
-        promgithub_job_completed{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
-    `)); err != nil {
+		# HELP promgithub_job_completed Number of jobs completed
+		# TYPE promgithub_job_completed gauge
+		promgithub_job_completed{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
+	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }

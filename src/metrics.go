@@ -12,7 +12,7 @@ var (
 			Name: "promgithub_workflow_status",
 			Help: "Total number of workflow runs with status",
 		},
-		[]string{"repository", "branch", "workflow_name", "workflow_status", "conclusion"},
+		[]string{"repository", "branch", "workflow_name", "workflow_status", "conclusion", "workflow_url"},
 	)
 
 	workflowDurationHistogram = promauto.NewHistogramVec(
@@ -54,7 +54,7 @@ var (
 			Name: "promgithub_job_status",
 			Help: "Total number of jobs with status",
 		},
-		[]string{"runner", "repository", "branch", "workflow_name", "job_name", "job_status", "job_conclusion"},
+		[]string{"runner", "repository", "branch", "workflow_name", "job_name", "job_status", "job_conclusion", "job_url"},
 	)
 
 	jobDurationHistogram = promauto.NewHistogramVec(
