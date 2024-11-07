@@ -2,22 +2,7 @@
 
 ## Deploying the service
 
-The service can be deployed in your choice of infrastructure
-
-### Deploying in kubernetes
-
-To deploy the service in a kubernetes cluster you can use the provided helm chart.
-
-**TODO:** Add helm chart details
-
-## Deploying service in a container
-
-To deploy the service in a container using a container management environment like fargate/docker-compose, you can use the `promgithub` container from the [GHCR container repository](https://github.com/darthfork/promgithub/pkgs/container/promgithub)
-
-## Deploying service binary
-
-The service binaries are also available under [github releases](https://github.com/darthfork/promgithub/releases) which can be deployed as the user wishes.
-
+The service can be deployed in your choice of infrastructure. To allow webhooks to be pushed to `promgithub` make sure your service deployment is accessible from your Github instance.
 
 ### Service Parameters
 
@@ -26,6 +11,94 @@ The service expects the following parameters to be set:
 - **Environment Variables**:
   - `PROMGITHUB_WEBHOOK_SECRET`: The secret used to validate incoming GitHub webhook requests.
   - `PROMGITHUB_SERVICE_PORT` (optional): Service API port (default is `8080`).
+
+### Deploying in kubernetes
+
+To deploy the service in a kubernetes cluster you can use the provided helm chart.
+
+**TODO:** Add helm chart details
+
+When deploying with kubernetes add the following resources to your `promgithub` deployment
+
+### Kubernetes deployment requirements
+
+Add the helm repo as a dependency to your chart deployment:
+
+```yaml
+apiVersion: v2
+name: promgithub
+description: Deployment of promgithub
+type: application
+version: <chart version>
+
+dependencies:
+  - name: promgithub
+    version: "<promgithub-charts version>"
+    repository: "oci://ghcr.io/darthfork/promgithub-charts"
+```
+
+#### Resources
+
+-  **Ingress**: Ingress allowing github to access `promgithub` deployment
+
+#### Chart and Values
+
+Create a values file with the webhook-secret and (optional) service-port values for your chart
+
+```yaml
+promgithub:
+  webhook-secret: <your webhook secret>
+  service-port: <service port>
+```
+
+## Deploying service in a container
+
+To deploy the service in a container using a container management environment like fargate/docker-compose, you can use the `promgithub` container from the [GHCR container repository](https://github.com/darthfork/promgithub/pkgs/container/promgithub)
+
+#### Docker CLI
+
+Run the service using docker cli as follows:
+
+```bash
+docker run\
+    -e PROMGITHUB_WEBHOOK_SECRET=<your webhook secret>\
+    -e PROMGITHUB_SERVICE_PORT=<service port>\
+    -p <HOST_PORT>:<CONTAINER_PORT>
+    ghcr.io/darthfork/promgithub:<version>
+```
+
+#### Docker Compose
+
+To run the service in docker compose, create a compose file as below:
+
+```yaml
+# promgithub-compose.yaml
+services:
+  promgithub:
+    image: ghcr.io/darthfork/promgithub:<version>
+    hostname: promgithub
+    stdin_open: false
+    tty: false
+    environment:
+      - PROMGITHUB_WEBHOOK_SECRET=<your webhook secret>
+      - PROMGITHUB_SERVICE_PORT=<service port (optional)>
+    ports:
+      - <HOST_PORT>:<CONTAINER_PORT>
+```
+
+To start the `promgithub` container with compose run:
+
+```bash
+docker-compose -f promgithub-compose.yaml run --rm promgithub
+```
+
+## Deploying service binary
+
+The service binaries are also available under [github releases](https://github.com/darthfork/promgithub/releases) which can be deployed as the user wishes.
+
+```bash
+PROMGITHUB_WEBHOOK_SECRET="<your webhook secret>" PROMGITHUB_SERVICE_PORT="<service port>" /path/to/binary/promgithub
+```
 
 ## Setting up the Webhook in GitHub (Repository/Organization)
 
