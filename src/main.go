@@ -81,6 +81,15 @@ func APIHandler(logger *zap.Logger) func(http.Handler) http.Handler {
 	}
 }
 
+func healthCheck(w http.ResponseWriter, r *http.Request) {
+	response := HealthCheckResposne{Status: "ok", Version: Version}
+	err := json.NewEncoder(w).Encode(response)
+	if err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
 func init() {
 	var err error
 	loggerConfig := zap.NewProductionConfig()
@@ -97,15 +106,6 @@ func init() {
 	}
 
 	defer logger.Sync()
-}
-
-func healthCheck(w http.ResponseWriter, r *http.Request) {
-	response := HealthCheckResposne{Status: "ok", Version: Version}
-	err := json.NewEncoder(w).Encode(response)
-	if err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
-	}
 }
 
 func main() {

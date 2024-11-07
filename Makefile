@@ -46,7 +46,10 @@ test:
 	@go test -v $(SRC)
 
 lint: ## Run linter
-	@golangci-lint run
+	@golangci-lint run -v\
+		--config=./.golangci.yaml\
+		--timeout=5m\
+		--out-format=colored-line-number
 
 fmt: ## Format golang source files
 	@go fmt ./...
