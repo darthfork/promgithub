@@ -13,6 +13,16 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	reg *prometheus.Registry
+)
+
+func init() {
+	// Disable logging
+	logger = zap.NewNop()
+	reg = prometheus.NewRegistry()
+}
+
 func TestHealthCheck(t *testing.T) {
 	// Set the Version variable for the test
 	Version = "1.0.0"
@@ -48,25 +58,8 @@ func TestHealthCheck(t *testing.T) {
 }
 
 func TestAPIHandler(t *testing.T) {
-	// Initialize the logger
-	logger := zap.NewNop()
-
-	// Initialize the Prometheus metrics
-	apiCallsCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "promgithub_api_calls_total",
-			Help: "Number of API calls",
-		},
-		[]string{"status", "method", "path"},
-	)
-	requestDurationHistogram = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "promgithub_request_duration_seconds",
-			Help:    "Request duration in seconds",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"path", "method"},
-	)
+	apiCallsCounter.Reset()
+	reg.MustRegister(apiCallsCounter)
 
 	// Create a test HTTP handler
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

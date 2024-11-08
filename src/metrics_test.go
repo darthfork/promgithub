@@ -6,20 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"go.uber.org/zap"
 )
-
-var (
-	reg *prometheus.Registry
-)
-
-func init() {
-	// Disable logging
-	logger = zap.NewNop()
-	reg = prometheus.NewRegistry()
-}
 
 func TestWorkflowStatusCounter(t *testing.T) {
 	workflowStatusCounter.Reset()
