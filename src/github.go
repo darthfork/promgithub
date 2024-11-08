@@ -14,6 +14,72 @@ import (
 	"go.uber.org/zap"
 )
 
+type GithubRepo struct {
+	FullName string `json:"full_name"`
+}
+
+type GithubWorkflow struct {
+	Workflow struct {
+		ID         int        `json:"id"`
+		Status     string     `json:"status"`
+		RunID      int        `json:"run_id"`
+		Name       string     `json:"name"`
+		Branch     string     `json:"head_branch"`
+		Repository GithubRepo `json:"repository"`
+		Conclusion string     `json:"conclusion"`
+		CreatedAt  string     `json:"created_at"`
+		UpdatedAt  string     `json:"updated_at"`
+		HTMLURL    string     `json:"html_url"`
+	} `json:"workflow_run"`
+}
+type GithubJob struct {
+	Job struct {
+		ID           int        `json:"id"`
+		Status       string     `json:"status"`
+		Name         string     `json:"name"`
+		Branch       string     `json:"head_branch"`
+		Repository   GithubRepo `json:"repository"`
+		RunnerName   string     `json:"runner_name"`
+		Conclusion   string     `json:"conclusion"`
+		StartedAt    string     `json:"started_at"`
+		CompletedAt  string     `json:"completed_at"`
+		WorkflowName string     `json:"workflow_name"`
+		HTMLURL      string     `json:"html_url"`
+	} `json:"workflow_job"`
+}
+
+type GithubCommit struct {
+	Repository GithubRepo `json:"repository"`
+	Commits    []struct {
+		ID     string `json:"id"`
+		Author struct {
+			Name  string `json:"name"`
+			Email string `json:"email"`
+		} `json:"author"`
+	} `json:"commits"`
+	Ref string `json:"ref"`
+}
+
+type GithubPullRequest struct {
+	Action      string `json:"action"`
+	PullRequest struct {
+		ID    int    `json:"id"`
+		State string `json:"state"`
+		Title string `json:"title"`
+		Base  struct {
+			Ref string `json:"ref"`
+		} `json:"base"`
+		Head struct {
+			Ref string `json:"ref"`
+		} `json:"head"`
+		User struct {
+			Login string `json:"login"`
+			Email string `json:"email"`
+		} `json:"user"`
+	} `json:"pull_request"`
+	Repository GithubRepo `json:"repository"`
+}
+
 func validateHMAC(body []byte, signature string, secret []byte) bool {
 	h := hmac.New(sha256.New, secret)
 	h.Write(body)
@@ -54,22 +120,8 @@ func githubEventsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateWorkflowMetrics(body []byte) {
-	var payload struct {
-		Workflow struct {
-			ID         int    `json:"id"`
-			Status     string `json:"status"`
-			RunID      int    `json:"run_id"`
-			Name       string `json:"name"`
-			Branch     string `json:"head_branch"`
-			Repository struct {
-				FullName string `json:"full_name"`
-			} `json:"repository"`
-			Conclusion string `json:"conclusion"`
-			CreatedAt  string `json:"created_at"`
-			UpdatedAt  string `json:"updated_at"`
-			HTMLURL    string `json:"html_url"`
-		} `json:"workflow_run"`
-	}
+	var payload GithubWorkflow
+
 	if err := json.Unmarshal(body, &payload); err != nil {
 		logger.Error("Failed to unmarshal workflow_run payload", zap.Error(err))
 		return
@@ -132,22 +184,9 @@ func updateWorkflowMetrics(body []byte) {
 }
 
 func updateJobMetrics(body []byte) {
-	var payload struct {
-		Job struct {
-			ID         int    `json:"id"`
-			Status     string `json:"status"`
-			Name       string `json:"name"`
-			Branch     string `json:"head_branch"`
-			Repository struct {
-				FullName string `json:"full_name"`
-			} `json:"repository"`
-			RunnerName  string `json:"runner_name"`
-			Conclusion  string `json:"conclusion"`
-			StartedAt   string `json:"started_at"`
-			CompletedAt string `json:"completed_at"`
-			HTMLURL     string `json:"html_url"`
-		} `json:"workflow_job"`
-	}
+
+	var payload GithubJob
+
 	if err := json.Unmarshal(body, &payload); err != nil {
 		logger.Error("Failed to unmarshal workflow_job payload", zap.Error(err))
 		return
@@ -157,7 +196,7 @@ func updateJobMetrics(body []byte) {
 		"runner":         payload.Job.RunnerName,
 		"repository":     payload.Job.Repository.FullName,
 		"branch":         payload.Job.Branch,
-		"workflow_name":  payload.Job.Name,
+		"workflow_name":  payload.Job.WorkflowName,
 		"job_name":       payload.Job.Name,
 		"job_status":     payload.Job.Status,
 		"job_conclusion": payload.Job.Conclusion,
@@ -171,7 +210,7 @@ func updateJobMetrics(body []byte) {
 			"runner":        payload.Job.RunnerName,
 			"repository":    payload.Job.Repository.FullName,
 			"branch":        payload.Job.Branch,
-			"workflow_name": payload.Job.Name,
+			"workflow_name": payload.Job.WorkflowName,
 			"job_name":      payload.Job.Name,
 		}).Inc()
 	case "in_progress":
@@ -179,14 +218,14 @@ func updateJobMetrics(body []byte) {
 			"runner":        payload.Job.RunnerName,
 			"repository":    payload.Job.Repository.FullName,
 			"branch":        payload.Job.Branch,
-			"workflow_name": payload.Job.Name,
+			"workflow_name": payload.Job.WorkflowName,
 			"job_name":      payload.Job.Name,
 		}).Inc()
 		jobQueuedGauge.With(prometheus.Labels{
 			"runner":        payload.Job.RunnerName,
 			"repository":    payload.Job.Repository.FullName,
 			"branch":        payload.Job.Branch,
-			"workflow_name": payload.Job.Name,
+			"workflow_name": payload.Job.WorkflowName,
 			"job_name":      payload.Job.Name,
 		}).Dec()
 	case "completed":
@@ -194,14 +233,14 @@ func updateJobMetrics(body []byte) {
 			"runner":        payload.Job.RunnerName,
 			"repository":    payload.Job.Repository.FullName,
 			"branch":        payload.Job.Branch,
-			"workflow_name": payload.Job.Name,
+			"workflow_name": payload.Job.WorkflowName,
 			"job_name":      payload.Job.Name,
 		}).Inc()
 		jobInProgressGauge.With(prometheus.Labels{
 			"runner":        payload.Job.RunnerName,
 			"repository":    payload.Job.Repository.FullName,
 			"branch":        payload.Job.Branch,
-			"workflow_name": payload.Job.Name,
+			"workflow_name": payload.Job.WorkflowName,
 			"job_name":      payload.Job.Name,
 		}).Dec()
 
@@ -214,7 +253,7 @@ func updateJobMetrics(body []byte) {
 				"runner":         payload.Job.RunnerName,
 				"repository":     payload.Job.Repository.FullName,
 				"branch":         payload.Job.Branch,
-				"workflow_name":  payload.Job.Name,
+				"workflow_name":  payload.Job.WorkflowName,
 				"job_name":       payload.Job.Name,
 				"job_status":     payload.Job.Status,
 				"job_conclusion": payload.Job.Conclusion,
@@ -224,19 +263,9 @@ func updateJobMetrics(body []byte) {
 }
 
 func updateCommitMetrics(body []byte) {
-	var payload struct {
-		Repository struct {
-			FullName string `json:"full_name"`
-		} `json:"repository"`
-		Commits []struct {
-			ID     string `json:"id"`
-			Author struct {
-				Name  string `json:"name"`
-				Email string `json:"email"`
-			} `json:"author"`
-		} `json:"commits"`
-		Ref string `json:"ref"`
-	}
+
+	var payload GithubCommit
+
 	if err := json.Unmarshal(body, &payload); err != nil {
 		logger.Error("Failed to unmarshal push payload", zap.Error(err))
 		return
@@ -253,27 +282,9 @@ func updateCommitMetrics(body []byte) {
 }
 
 func updatePullRequestMetrics(body []byte) {
-	var payload struct {
-		Action      string `json:"action"`
-		PullRequest struct {
-			ID    int    `json:"id"`
-			State string `json:"state"`
-			Title string `json:"title"`
-			Base  struct {
-				Ref string `json:"ref"`
-			} `json:"base"`
-			Head struct {
-				Ref string `json:"ref"`
-			} `json:"head"`
-			User struct {
-				Login string `json:"login"`
-				Email string `json:"email"`
-			} `json:"user"`
-		} `json:"pull_request"`
-		Repository struct {
-			FullName string `json:"full_name"`
-		} `json:"repository"`
-	}
+
+	var payload GithubPullRequest
+
 	if err := json.Unmarshal(body, &payload); err != nil {
 		logger.Error("Failed to unmarshal pull_request payload", zap.Error(err))
 		return

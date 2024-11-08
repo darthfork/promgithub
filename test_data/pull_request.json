@@ -1,0 +1,21 @@
+{
+  "action": "opened",
+  "pull_request": {
+    "id": 1,
+    "state": "open",
+    "title": "PR title",
+    "base": {
+      "ref": "main"
+    },
+    "head": {
+      "ref": "feature-branch"
+    },
+    "user": {
+      "login": "user1",
+      "email": "user1@example.com"
+    }
+  },
+  "repository": {
+    "full_name": "user/repo"
+  }
+}

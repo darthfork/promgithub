@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,13 +41,19 @@ func TestValidateHMAC(t *testing.T) {
 }
 
 func TestValidPayload(t *testing.T) {
-	body := []byte(`{"workflow_run": {"id": 1, "status": "completed", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}, "conclusion": "success", "created_at": "2023-01-01T00:00:00Z", "updated_at": "2023-01-01T01:00:00Z"}}`)
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	recorder := sendTestRequest(body, "workflow_run")
 	assert.Equal(t, http.StatusOK, recorder.Code)
 }
 
 func TestInvalidSignature(t *testing.T) {
-	body := []byte(`{"workflow_run": {"id": 1, "status": "completed", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}, "conclusion": "success", "created_at": "2023-01-01T00:00:00Z", "updated_at": "2023-01-01T01:00:00Z"}}`)
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewBuffer(body))
 	req.Header.Set("X-Hub-Signature-256", "invalid_signature")
@@ -59,7 +66,10 @@ func TestInvalidSignature(t *testing.T) {
 }
 
 func TestMissingSignature(t *testing.T) {
-	body := []byte(`{"workflow_run": {"id": 1, "status": "completed", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}, "conclusion": "success", "created_at": "2023-01-01T00:00:00Z", "updated_at": "2023-01-01T01:00:00Z"}}`)
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewBuffer(body))
 	req.Header.Set("X-GitHub-Event", "workflow_run")
@@ -71,7 +81,10 @@ func TestMissingSignature(t *testing.T) {
 }
 
 func TestUnknownEvent(t *testing.T) {
-	body := []byte(`{"workflow_run": {"id": 1, "status": "completed", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}, "conclusion": "success", "created_at": "2023-01-01T00:00:00Z", "updated_at": "2023-01-01T01:00:00Z"}}`)
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	recorder := sendTestRequest(body, "unknown_event")
 	assert.Equal(t, http.StatusOK, recorder.Code)
 }
