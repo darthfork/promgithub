@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +55,44 @@ func TestHealthCheck(t *testing.T) {
 
 	if actualResponse != expectedResponse {
 		t.Errorf("Expected response body %+v, got %+v", expectedResponse, actualResponse)
+	}
+}
+
+func TestSetupRouter(t *testing.T) {
+	// Set environment variables for the test
+	os.Setenv("PROMGITHUB_WEBHOOK_SECRET", "testsecret")
+	defer os.Unsetenv("PROMGITHUB_WEBHOOK_SECRET")
+
+	// Initialize the logger
+	logger := zap.NewNop()
+
+	// Set up the router
+	r := setupRouter(logger)
+
+	// Create a test HTTP server
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	// Test the /health endpoint
+	resp, err := http.Get(server.URL + "/health")
+	if err != nil {
+		t.Fatalf("Failed to send HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+	}
+
+	// Test the /metrics endpoint
+	resp, err = http.Get(server.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("Failed to send HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
 	}
 }
 
