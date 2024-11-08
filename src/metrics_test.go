@@ -1,18 +1,21 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 func TestWorkflowStatusCounter(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	workflowStatusCounter.Reset()
 	reg.MustRegister(workflowStatusCounter)
-	body := []byte(`{"workflow_run": {"id": 1, "status": "completed", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}, "conclusion": "success", "html_url": "https://github.com/user/repo/actions/runs/1001", "created_at": "2023-01-01T00:00:00Z", "updated_at": "2023-01-01T01:00:00Z"}}`)
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	updateWorkflowMetrics(body)
 
 	// Test counter
@@ -26,27 +29,31 @@ func TestWorkflowStatusCounter(t *testing.T) {
 }
 
 func TestJobStatusCounter(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	jobStatusCounter.Reset()
 	reg.MustRegister(jobStatusCounter)
-	body := []byte(`{"workflow_job": {"id": 1, "status": "completed", "name": "Job1", "head_branch": "main", "repository": {"full_name": "user/repo"}, "runner_name": "runner1", "conclusion": "success", "html_url": "https://github.com/user/repo/actions/jobs/1", "started_at": "2023-01-01T00:00:00Z", "completed_at": "2023-01-01T01:00:00Z"}}`)
+	body, err := os.ReadFile("../test_data/workflow_job.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	updateJobMetrics(body)
 
 	// Test counter
 	if err := testutil.CollectAndCompare(jobStatusCounter, strings.NewReader(`
         # HELP promgithub_job_status Total number of jobs with status
         # TYPE promgithub_job_status counter
-        promgithub_job_status{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",job_url="https://github.com/user/repo/actions/jobs/1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
+        promgithub_job_status{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",job_url="https://github.com/user/repo/actions/jobs/1",repository="user/repo",runner="runner1",workflow_name="CI"} 1
     `)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
 
 func TestCommitsPushedCounter(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	commitPushedCounter.Reset()
 	reg.MustRegister(commitPushedCounter)
-	body := []byte(`{"repository": {"full_name": "user/repo"}, "commits": [{"id": "commit1", "author": {"name": "Author1", "email": "author1@example.com"}}], "ref": "refs/heads/main"}`)
+	body, err := os.ReadFile("../test_data/push.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	updateCommitMetrics(body)
 
 	// Test counter
@@ -60,10 +67,12 @@ func TestCommitsPushedCounter(t *testing.T) {
 }
 
 func TestPullRequestsCounter(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	pullRequestCounter.Reset()
 	reg.MustRegister(pullRequestCounter)
-	body := []byte(`{"action": "opened", "pull_request": {"id": 1, "state": "open", "title": "PR title", "base": {"ref": "main"}, "head": {"ref": "feature-branch"}, "user": {"login": "user1", "email": "user1@example.com"}}, "repository": {"full_name": "user/repo"}}`)
+	body, err := os.ReadFile("../test_data/pull_request.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	updatePullRequestMetrics(body)
 
 	// Test counter
@@ -77,10 +86,12 @@ func TestPullRequestsCounter(t *testing.T) {
 }
 
 func TestWorkflowDurationHistogram(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	workflowDurationHistogram.Reset()
 	reg.MustRegister(workflowDurationHistogram)
-	body := []byte(`{"workflow_run": {"id": 1, "status": "completed", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}, "conclusion": "success", "created_at": "2023-01-01T00:00:00Z", "updated_at": "2023-01-01T01:00:00Z"}}`)
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	updateWorkflowMetrics(body)
 
 	// Test histogram
@@ -107,41 +118,62 @@ func TestWorkflowDurationHistogram(t *testing.T) {
 }
 
 func TestJobDurationHistogram(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	jobDurationHistogram.Reset()
 	reg.MustRegister(jobDurationHistogram)
-	body := []byte(`{"workflow_job": {"id": 1, "status": "completed", "name": "Job1", "head_branch": "main", "repository": {"full_name": "user/repo"}, "runner_name": "runner1", "conclusion": "success", "started_at": "2023-01-01T00:00:00Z", "completed_at": "2023-01-01T01:00:00Z"}}`)
+	body, err := os.ReadFile("../test_data/workflow_job.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	updateJobMetrics(body)
 
 	// Test histogram
 	if err := testutil.CollectAndCompare(jobDurationHistogram, strings.NewReader(`
         # HELP promgithub_job_duration Duration of jobs runs in seconds
         # TYPE promgithub_job_duration histogram
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="0.005"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="0.01"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="0.025"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="0.05"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="0.1"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="0.25"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="0.5"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="1"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="2.5"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="5"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="10"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1",le="+Inf"} 1
-        promgithub_job_duration_sum{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1"} 3600
-        promgithub_job_duration_count{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.005"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.01"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.025"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.05"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.1"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.25"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.5"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="1"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="2.5"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="5"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="10"} 0
+        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="+Inf"} 1
+        promgithub_job_duration_sum{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI"} 3600
+        promgithub_job_duration_count{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI"} 1
     `)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
 
 func TestWorkflowQueuedGauge(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	workflowQueuedGauge.Reset()
 	reg.MustRegister(workflowQueuedGauge)
-	body := []byte(`{"workflow_run": {"id": 1, "status": "queued", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}}}`)
-	updateWorkflowMetrics(body)
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var payload GithubWorkflow
+
+	// Unmarshal the JSON data into the struct
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("Failed to unmarshal JSON data: %v", err)
+	}
+
+	// Modify the status field
+	payload.Workflow.Status = "queued"
+
+	// Marshal the modified struct back to JSON if needed
+	modifiedBody, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Failed to marshal modified JSON data: %v", err)
+	}
+
+	updateWorkflowMetrics(modifiedBody)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(workflowQueuedGauge, strings.NewReader(`
@@ -154,11 +186,30 @@ func TestWorkflowQueuedGauge(t *testing.T) {
 }
 
 func TestWorkflowInProgressGauge(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	workflowInProgressGauge.Reset()
 	reg.MustRegister(workflowInProgressGauge)
-	body := []byte(`{"workflow_run": {"id": 1, "status": "in_progress", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}}}`)
-	updateWorkflowMetrics(body)
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var payload GithubWorkflow
+
+	// Unmarshal the JSON data into the struct
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("Failed to unmarshal JSON data: %v", err)
+	}
+
+	// Modify the status field
+	payload.Workflow.Status = "in_progress"
+
+	// Marshal the modified struct back to JSON if needed
+	modifiedBody, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Failed to marshal modified JSON data: %v", err)
+	}
+
+	updateWorkflowMetrics(modifiedBody)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(workflowInProgressGauge, strings.NewReader(`
@@ -171,10 +222,12 @@ func TestWorkflowInProgressGauge(t *testing.T) {
 }
 
 func TestWorkflowCompletedGauge(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	workflowCompletedGauge.Reset()
 	reg.MustRegister(workflowCompletedGauge)
-	body := []byte(`{"workflow_run": {"id": 1, "status": "completed", "run_id": 1001, "name": "CI", "head_branch": "main", "repository": {"full_name": "user/repo"}}}`)
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
 	updateWorkflowMetrics(body)
 
 	// Test gauge
@@ -188,51 +241,109 @@ func TestWorkflowCompletedGauge(t *testing.T) {
 }
 
 func TestJobQueuedGauge(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	jobQueuedGauge.Reset()
 	reg.MustRegister(jobQueuedGauge)
-	body := []byte(`{"workflow_job": {"id": 1, "status": "queued", "name": "Job1", "head_branch": "main", "repository": {"full_name": "user/repo"}, "runner_name": "runner1"}}`)
-	updateJobMetrics(body)
+	body, err := os.ReadFile("../test_data/workflow_job.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var payload GithubJob
+
+	// Unmarshal the JSON data into the struct
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("Failed to unmarshal JSON data: %v", err)
+	}
+
+	// Modify the status field
+	payload.Job.Status = "queued"
+
+	// Marshal the modified struct back to JSON
+	modifiedBody, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Failed to marshal modified JSON data: %v", err)
+	}
+
+	updateJobMetrics(modifiedBody)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(jobQueuedGauge, strings.NewReader(`
 		# HELP promgithub_job_queued Number of jobs queued
 		# TYPE promgithub_job_queued gauge
-		promgithub_job_queued{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
+		promgithub_job_queued{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="CI"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
 
 func TestJobInProgressGauge(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	jobInProgressGauge.Reset()
 	reg.MustRegister(jobInProgressGauge)
-	body := []byte(`{"workflow_job": {"id": 1, "status": "in_progress", "name": "Job1", "head_branch": "main", "repository": {"full_name": "user/repo"}, "runner_name": "runner1"}}`)
-	updateJobMetrics(body)
+	body, err := os.ReadFile("../test_data/workflow_job.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var payload GithubJob
+
+	// Unmarshal the JSON data into the struct
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("Failed to unmarshal JSON data: %v", err)
+	}
+
+	// Modify the status field
+	payload.Job.Status = "in_progress"
+
+	// Marshal the modified struct back to JSON
+	modifiedBody, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Failed to marshal modified JSON data: %v", err)
+	}
+
+	updateJobMetrics(modifiedBody)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(jobInProgressGauge, strings.NewReader(`
 		# HELP promgithub_job_in_progress Number of jobs in progress
 		# TYPE promgithub_job_in_progress gauge
-		promgithub_job_in_progress{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
+		promgithub_job_in_progress{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="CI"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
 
 func TestJobCompletedGauge(t *testing.T) {
-	reg := prometheus.NewRegistry()
 	jobCompletedGauge.Reset()
 	reg.MustRegister(jobCompletedGauge)
-	body := []byte(`{"workflow_job": {"id": 1, "status": "completed", "name": "Job1", "head_branch": "main", "repository": {"full_name": "user/repo"}, "runner_name": "runner1"}}`)
-	updateJobMetrics(body)
+
+	body, err := os.ReadFile("../test_data/workflow_job.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var payload GithubJob
+
+	// Unmarshal the JSON data into the struct
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("Failed to unmarshal JSON data: %v", err)
+	}
+
+	// Modify the status field
+	payload.Job.Status = "completed"
+
+	// Marshal the modified struct back to JSON
+	modifiedBody, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Failed to marshal modified JSON data: %v", err)
+	}
+
+	updateJobMetrics(modifiedBody)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(jobCompletedGauge, strings.NewReader(`
 		# HELP promgithub_job_completed Number of jobs completed
 		# TYPE promgithub_job_completed gauge
-		promgithub_job_completed{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="Job1"} 1
+		promgithub_job_completed{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="CI"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}

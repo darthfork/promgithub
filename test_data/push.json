@@ -1,0 +1,15 @@
+{
+  "repository": {
+    "full_name": "user/repo"
+  },
+  "commits": [
+    {
+      "id": "commit1",
+      "author": {
+        "name": "Author1",
+        "email": "author1@example.com"
+      }
+    }
+  ],
+  "ref": "refs/heads/main"
+}

@@ -1,0 +1,18 @@
+{
+  "action": "completed",
+  "workflow_job": {
+    "id": 1,
+    "status": "completed",
+    "name": "Job1",
+    "workflow_name": "CI",
+    "head_branch": "main",
+    "repository": {
+      "full_name": "user/repo"
+    },
+    "runner_name": "runner1",
+    "conclusion": "success",
+    "html_url": "https://github.com/user/repo/actions/jobs/1",
+    "started_at": "2023-01-01T00:00:00Z",
+    "completed_at": "2023-01-01T01:00:00Z"
+  }
+}

@@ -108,6 +108,26 @@ func init() {
 	defer logger.Sync()
 }
 
+func setupRouter(logger *zap.Logger) *mux.Router {
+	r := mux.NewRouter()
+	r.Use(APIHandler(logger))
+
+	r.HandleFunc("/health", healthCheck).Methods("GET")
+	r.Handle("/metrics", promhttp.Handler())
+	r.HandleFunc("/webhook", githubEventsHandler).Methods("POST")
+
+	// Profiling endpoints
+	if debug {
+		r.HandleFunc("/debug/pprof/", pprof.Index)
+		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
+
+	return r
+}
+
 func main() {
 	port := strings.TrimSpace(os.Getenv("PROMGITHUB_SERVICE_PORT"))
 	if port == "" {
@@ -120,23 +140,7 @@ func main() {
 	}
 	githubWebhookSecret = []byte(ghWebhookSecretEnv)
 
-	r := mux.NewRouter()
-	r.Use(APIHandler(logger))
-
-	r.HandleFunc("/health", healthCheck).Methods("GET")
-
-	r.Handle("/metrics", promhttp.Handler())
-
-	r.HandleFunc("/webhook", githubEventsHandler).Methods("POST")
-
-	// Profiling endpoints
-	if debug {
-		r.HandleFunc("/debug/pprof/", pprof.Index)
-		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	}
+	r := setupRouter(logger)
 
 	logger.Info("Starting server", zap.String("port", port))
 	if err := http.ListenAndServe(":"+port, r); err != nil {
