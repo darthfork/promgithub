@@ -62,7 +62,7 @@ func TestJobStatusCounter(t *testing.T) {
 func TestCommitsPushedCounter(t *testing.T) {
 	commitPushedCounter.Reset()
 	reg.MustRegister(commitPushedCounter)
-	body, err := os.ReadFile("../test_data/commit.json")
+	body, err := os.ReadFile("../test_data/push.json")
 	if err != nil {
 		t.Fatalf("Failed to read test data file: %v", err)
 	}

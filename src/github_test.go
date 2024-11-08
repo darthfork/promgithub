@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,13 +41,23 @@ func TestValidateHMAC(t *testing.T) {
 	assert.True(t, valid)
 }
 
-func TestValidPayload(t *testing.T) {
-	body, err := os.ReadFile("../test_data/workflow_run.json")
+func TestValidWorkflowPayload(t *testing.T) {
+	dir, err := os.ReadDir("../test_data")
 	if err != nil {
-		t.Fatalf("Failed to read test data file: %v", err)
+		t.Fatalf("Failed to read test data directory: %v", err)
 	}
-	recorder := sendTestRequest(body, "workflow_run")
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	for _, file := range dir {
+		if file.IsDir() {
+			continue
+		}
+		body, err := os.ReadFile("../test_data/" + file.Name())
+		if err != nil {
+			t.Fatalf("Failed to read test data file: %v", err)
+		}
+		eventType := strings.TrimSuffix(file.Name(), ".json")
+		recorder := sendTestRequest(body, eventType)
+		assert.Equal(t, http.StatusOK, recorder.Code)
+	}
 }
 
 func TestInvalidSignature(t *testing.T) {
