@@ -133,7 +133,6 @@ func updateWorkflowMetrics(body []byte) {
 		"workflow_name":   payload.Workflow.Name,
 		"workflow_status": payload.Workflow.Status,
 		"conclusion":      payload.Workflow.Conclusion,
-		"workflow_url":    payload.Workflow.HTMLURL,
 	}).Inc()
 
 	// Handle updating the gauges based on workflow status
@@ -157,9 +156,10 @@ func updateWorkflowMetrics(body []byte) {
 		}).Dec()
 	case "completed":
 		workflowCompletedGauge.With(prometheus.Labels{
-			"repository":    payload.Workflow.Repository.FullName,
-			"branch":        payload.Workflow.Branch,
-			"workflow_name": payload.Workflow.Name,
+			"repository":          payload.Workflow.Repository.FullName,
+			"branch":              payload.Workflow.Branch,
+			"workflow_conclusion": payload.Workflow.Conclusion,
+			"workflow_name":       payload.Workflow.Name,
 		}).Inc()
 		workflowInProgressGauge.With(prometheus.Labels{
 			"repository":    payload.Workflow.Repository.FullName,
@@ -200,7 +200,6 @@ func updateJobMetrics(body []byte) {
 		"job_name":       payload.Job.Name,
 		"job_status":     payload.Job.Status,
 		"job_conclusion": payload.Job.Conclusion,
-		"job_url":        payload.Job.HTMLURL,
 	}).Inc()
 
 	// Handle updating the gauges based on job status
@@ -230,11 +229,12 @@ func updateJobMetrics(body []byte) {
 		}).Dec()
 	case "completed":
 		jobCompletedGauge.With(prometheus.Labels{
-			"runner":        payload.Job.RunnerName,
-			"repository":    payload.Job.Repository.FullName,
-			"branch":        payload.Job.Branch,
-			"workflow_name": payload.Job.WorkflowName,
-			"job_name":      payload.Job.Name,
+			"runner":         payload.Job.RunnerName,
+			"repository":     payload.Job.Repository.FullName,
+			"branch":         payload.Job.Branch,
+			"job_conclusion": payload.Job.Conclusion,
+			"workflow_name":  payload.Job.WorkflowName,
+			"job_name":       payload.Job.Name,
 		}).Inc()
 		jobInProgressGauge.With(prometheus.Labels{
 			"runner":        payload.Job.RunnerName,
@@ -291,11 +291,9 @@ func updatePullRequestMetrics(body []byte) {
 	}
 
 	pullRequestCounter.With(prometheus.Labels{
-		"repository":                payload.Repository.FullName,
-		"base_branch":               payload.PullRequest.Base.Ref,
-		"head_branch":               payload.PullRequest.Head.Ref,
-		"pull_request_author":       payload.PullRequest.User.Login,
-		"pull_request_author_email": payload.PullRequest.User.Email,
-		"pull_request_status":       payload.Action,
+		"repository":          payload.Repository.FullName,
+		"base_branch":         payload.PullRequest.Base.Ref,
+		"pull_request_author": payload.PullRequest.User.Login,
+		"pull_request_status": payload.Action,
 	}).Inc()
 }

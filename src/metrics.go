@@ -12,7 +12,7 @@ var (
 			Name: "promgithub_workflow_status",
 			Help: "Total number of workflow runs with status",
 		},
-		[]string{"repository", "branch", "workflow_name", "workflow_status", "conclusion", "workflow_url"},
+		[]string{"repository", "branch", "workflow_name", "workflow_status", "conclusion"},
 	)
 
 	workflowDurationHistogram = promauto.NewHistogramVec(
@@ -45,7 +45,7 @@ var (
 			Name: "promgithub_workflow_completed",
 			Help: "Number of workflow runs completed",
 		},
-		[]string{"repository", "branch", "workflow_name"},
+		[]string{"repository", "branch", "workflow_conclusion", "workflow_name"},
 	)
 
 	// Job metrics
@@ -54,7 +54,7 @@ var (
 			Name: "promgithub_job_status",
 			Help: "Total number of jobs with status",
 		},
-		[]string{"runner", "repository", "branch", "workflow_name", "job_name", "job_status", "job_conclusion", "job_url"},
+		[]string{"runner", "repository", "branch", "workflow_name", "job_name", "job_status", "job_conclusion"},
 	)
 
 	jobDurationHistogram = promauto.NewHistogramVec(
@@ -87,7 +87,7 @@ var (
 			Name: "promgithub_job_completed",
 			Help: "Number of jobs completed",
 		},
-		[]string{"runner", "repository", "branch", "workflow_name", "job_name"},
+		[]string{"runner", "repository", "branch", "job_conclusion", "workflow_name", "job_name"},
 	)
 
 	commitPushedCounter = promauto.NewCounterVec(
@@ -103,6 +103,6 @@ var (
 			Name: "promgithub_pull_request",
 			Help: "Total number of pull requests",
 		},
-		[]string{"repository", "base_branch", "head_branch", "pull_request_author", "pull_request_author_email", "pull_request_status"},
+		[]string{"repository", "base_branch", "pull_request_author", "pull_request_status"},
 	)
 )
