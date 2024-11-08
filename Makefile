@@ -36,7 +36,7 @@ debug: build
 
 cross-platform: ## Create cross-platform binaries
 cross-platform: mkdir
-	for GOARCH in amd64 arm64; do \
+	@for GOARCH in amd64 arm64; do \
 		GOOS=linux GOARCH=$$GOARCH $(MAKE) TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) build; \
 	done
 

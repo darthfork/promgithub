@@ -22,7 +22,7 @@ func TestWorkflowStatusCounter(t *testing.T) {
 	if err := testutil.CollectAndCompare(workflowStatusCounter, strings.NewReader(`
 		# HELP promgithub_workflow_status Total number of workflow runs with status
 		# TYPE promgithub_workflow_status counter
-		promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",workflow_url="https://github.com/user/repo/actions/runs/1001"} 1
+		promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestJobStatusCounter(t *testing.T) {
 	if err := testutil.CollectAndCompare(jobStatusCounter, strings.NewReader(`
         # HELP promgithub_job_status Total number of jobs with status
         # TYPE promgithub_job_status counter
-        promgithub_job_status{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",job_url="https://github.com/user/repo/actions/jobs/1",repository="user/repo",runner="runner1",workflow_name="CI"} 1
+        promgithub_job_status{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI"} 1
     `)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestPullRequestsCounter(t *testing.T) {
 	if err := testutil.CollectAndCompare(pullRequestCounter, strings.NewReader(`
 		# HELP promgithub_pull_request Total number of pull requests
 		# TYPE promgithub_pull_request counter
-		promgithub_pull_request{base_branch="main",head_branch="feature-branch",pull_request_author="user1",pull_request_author_email="user1@example.com",pull_request_status="opened",repository="user/repo"} 1
+		promgithub_pull_request{base_branch="main",pull_request_author="user1",pull_request_status="opened",repository="user/repo"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestWorkflowCompletedGauge(t *testing.T) {
 	if err := testutil.CollectAndCompare(workflowCompletedGauge, strings.NewReader(`
 		# HELP promgithub_workflow_completed Number of workflow runs completed
 		# TYPE promgithub_workflow_completed gauge
-		promgithub_workflow_completed{branch="main",repository="user/repo",workflow_name="CI"} 1
+		promgithub_workflow_completed{branch="main",repository="user/repo",workflow_conclusion="success",workflow_name="CI"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestJobCompletedGauge(t *testing.T) {
 	if err := testutil.CollectAndCompare(jobCompletedGauge, strings.NewReader(`
 		# HELP promgithub_job_completed Number of jobs completed
 		# TYPE promgithub_job_completed gauge
-		promgithub_job_completed{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="CI"} 1
+		promgithub_job_completed{branch="main",job_conclusion="success",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="CI"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
