@@ -36,11 +36,13 @@ debug: LDFLAGS := $(LDFLAGS_DBG)
 debug: TARGET := $(TARGET)-debug
 debug: build
 
-build-cross-platform: ## Create cross-platform binaries
+build-cross-platform: ## Create cross-platform binaries (CI only)
 build-cross-platform: mkdir
-	@for GOARCH in amd64 arm64; do \
-		GOOS=linux GOARCH=$$GOARCH $(MAKE) TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) build; \
-	done
+	@if [ "$(CI)" = "true" ]; then \
+		for GOARCH in amd64 arm64; do \
+			GOOS=linux GOARCH=$$GOARCH $(MAKE) TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) build; \
+		done\
+	fi
 
 test: ## Run unit tests
 test: PROMGITHUB_WEBHOOK_SECRET := test-secret
@@ -60,13 +62,13 @@ coverage: ## Run unit tests with coverage
 	@go test -cover -v $(SRC) -coverprofile=coverage.out
 	@go tool cover -html=coverage.out
 
-build-cross-platform-container: ## Build containers for linux/amd64 and linux/arm64
+build-cross-platform-container: ## Build containers for linux/amd64 and linux/arm64 (CI only)
 	@if [ "$(CI)" = "true" ]; then \
 		docker buildx build \
 			--platform linux/amd64,linux/arm64 \
 			-t $(REGISTRY):$(VERSION) \
-			--cache-from type=registry,ref=$(REGISTRY):$(VERSION),mode=max \
-			--cache-to type=registry,ref=$(REGISTRY):$(VERSION),mode=max \
+			--cache-from type=gha\
+			--cache-to type=gha,mode=max \
 			. --push; \
 	fi
 
