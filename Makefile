@@ -3,6 +3,7 @@
 include version
 
 .DEFAULT_GOAL		:= help
+CI			?= false
 TARGET			:= promgithub
 SRC			:= ./...
 LDFLAGS			:= -X main.Version=$(VERSION) -s -w
@@ -60,12 +61,14 @@ coverage: ## Run unit tests with coverage
 	@go tool cover -html=coverage.out
 
 build-cross-platform-container: ## Build containers for linux/amd64 and linux/arm64
-	@docker buildx build\
-		--platform linux/amd64,linux/arm64\
-		-t $(REGISTRY):$(VERSION)\
-		--cache-from type=registry,ref=$(REGISTRY):cache\
-		--cache-to type=registry,ref=$(REGISTRY):cache\
-		. --push
+	@if [ "$(CI)" = "true" ]; then \
+		docker buildx build \
+			--platform linux/amd64,linux/arm64 \
+			-t $(REGISTRY):$(VERSION) \
+			--cache-from type=registry,ref=$(REGISTRY):$(VERSION),mode=max \
+			--cache-to type=registry,ref=$(REGISTRY):$(VERSION),mode=max \
+			. --push; \
+	fi
 
 container: ## Build promgithub service container
 	@docker build --progress=plain -t $(REGISTRY):$(VERSION) .
