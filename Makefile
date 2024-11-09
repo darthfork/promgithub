@@ -9,6 +9,7 @@ LDFLAGS			:= -X main.Version=$(VERSION) -s -w
 LDFLAGS_DBG		:= -X main.Version=$(VERSION)
 BUILDDIR		:= build
 REGISTRY		:= ghcr.io/darthfork/promgithub
+TARGETARCH		:= linux/amd64,linux/arm64
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile\
@@ -34,8 +35,8 @@ debug: LDFLAGS := $(LDFLAGS_DBG)
 debug: TARGET := $(TARGET)-debug
 debug: build
 
-cross-platform: ## Create cross-platform binaries
-cross-platform: mkdir
+build-cross-platform: ## Create cross-platform binaries
+build-cross-platform: mkdir
 	@for GOARCH in amd64 arm64; do \
 		GOOS=linux GOARCH=$$GOARCH $(MAKE) TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) build; \
 	done
@@ -58,21 +59,24 @@ coverage: ## Run unit tests with coverage
 	@go test -cover -v $(SRC) -coverprofile=coverage.out
 	@go tool cover -html=coverage.out
 
-build-container:
-	@docker build --progress=plain -t $(REGISTRY):$(VERSION) .
-
-push-container: build-container
-	@docker push $(REGISTRY):$(VERSION)
+build-cross-platform-container: ## Build containers for linux/amd64 and linux/arm64
+	@docker buildx build\
+		--platform linux/amd64,linux/arm64\
+		-t $(REGISTRY):$(VERSION)\
+		--cache-from type=registry,ref=$(REGISTRY):cache\
+		--cache-to type=registry,ref=$(REGISTRY):cache\
+		. --push
 
 container: ## Build promgithub service container
-container: build-container
+	@docker build --progress=plain -t $(REGISTRY):$(VERSION) .
 
 release: ## Create github release and upload artifacts
-release: push-container cross-platform
-	@gh release create v$(VERSION)\
-		--title "promgithub-v$(VERSION)"\
-		--generate-notes\
-		$(BUILDDIR)/*
+release: build-cross-platform-container
+#release: build-cross-platform build-cross-platform-container
+#	@gh release create v$(VERSION)\
+#		--title "promgithub-v$(VERSION)"\
+#		--generate-notes\
+#		$(BUILDDIR)/*
 
 clean: ## Clean build directory
 	@rm -rf $(BUILDDIR)

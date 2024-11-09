@@ -1,6 +1,10 @@
 name: Release promgithub
 
 on:
+  # Temp trigger for testing
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -25,11 +29,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get go version
-        id: go_version
+      - name: Setup environment
+        id: environment
         run: |
           GOVERSION=$(make go-version)
           echo "GOVERSION=${GOVERSION}" >> $GITHUB_ENV
+          echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
+          echo "DOCKER_CLI_EXPERIMENTAL=enabled" >> $GITHUB_ENV
 
       - name: Set up Golang
         uses: actions/setup-go@v5
