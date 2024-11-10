@@ -84,16 +84,6 @@ build-cross-platform-container: ci-check
 		--cache-to type=gha,mode=max,scope=$(TARGET) \
 		. --push
 
-update-chart-version:
-	@sed --version 2>/dev/null; \
-	if [ $$? -eq 0 ]; then \
-		sed -i "s/version: .*/version: $(VERSION)/" helm/promgithub/Chart.yaml; \
-		sed -i "s/appVersion: .*/appVersion: \"$(VERSION)\"/" helm/promgithub/Chart.yaml; \
-	else \
-		sed -i '' "s/version: .*/version: $(VERSION)/" helm/promgithub/Chart.yaml; \
-		sed -i '' "s/appVersion: .*/appVersion: \"$(VERSION)\"/" helm/promgithub/Chart.yaml; \
-	fi
-
 build-and-push-helm-chart: ci-check mkdir update-chart-version
 	@helm package $(CHART_SOURCE) -d $(BUILDDIR)
 	@helm push $(BUILDDIR)/$(TARGET)-$(CHART_VERSION).tgz $(CHART_REGISTRY)

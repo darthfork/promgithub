@@ -3,8 +3,18 @@
 # Change to the repository root
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
-# Run the Makefile target
-make update-chart-version
+source ./version
+
+sed --version 2>/dev/null
+
+# Update chart version
+if [ $? -eq 0 ]; then
+	sed -i "s/version: .*/version: $VERSION/" helm/promgithub/Chart.yaml
+	sed -i "s/appVersion: .*/appVersion: \"$VERSION\"/" helm/promgithub/Chart.yaml
+else
+	sed -i '' "s/version: .*/version: $VERSION/" helm/promgithub/Chart.yaml
+	sed -i '' "s/appVersion: .*/appVersion: \"$VERSION\"/" helm/promgithub/Chart.yaml
+fi
 
 # Check if the Chart.yaml was updated, stage the change
 git add helm/promgithub/Chart.yaml
