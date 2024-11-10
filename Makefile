@@ -76,12 +76,11 @@ container: ## Build promgithub service container
 	@docker build --progress=plain -t $(REGISTRY):$(VERSION) .
 
 release: ## Create github release and upload artifacts
-release: build-cross-platform-container
-#release: build-cross-platform build-cross-platform-container
-#	@gh release create v$(VERSION)\
-#		--title "promgithub-v$(VERSION)"\
-#		--generate-notes\
-#		$(BUILDDIR)/*
+release: build-cross-platform build-cross-platform-container
+	@gh release create v$(VERSION)\
+		--title "promgithub-v$(VERSION)"\
+		--generate-notes\
+		$(BUILDDIR)/*
 
 clean: ## Clean build directory
 	@rm -rf $(BUILDDIR)

@@ -1,4 +1,4 @@
-name: promgithub Build
+name: Build promgithub
 
 on:
   schedule:
