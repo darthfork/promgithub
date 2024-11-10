@@ -3,6 +3,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: {{ include "promgithub.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "promgithub.labels" . | nindent 4 }}
 spec:

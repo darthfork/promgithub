@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "promgithub.fullname" . }}
-  namespace: {{ include "promgithub.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "promgithub.labels" . | nindent 4 }}
 spec:
