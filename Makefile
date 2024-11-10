@@ -83,9 +83,7 @@ release: build-cross-platform build-cross-platform-container
 			--generate-notes \
 			$(BUILDDIR)/*; \
 	else \
-		@echo "This target is only available in CI" \
-		@echo "To run this locally set CI=true"; \
-		exit 1; \
+		printf "This target is only available in CI\nTo run this locally, run \"CI=true make release\" \n"; \
 	fi
 
 clean: ## Clean build directory
