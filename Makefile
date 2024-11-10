@@ -41,7 +41,7 @@ build-cross-platform: mkdir
 	@if [ "$(CI)" = "true" ]; then \
 		for GOARCH in amd64 arm64; do \
 			GOOS=linux GOARCH=$$GOARCH $(MAKE) TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) build; \
-		done\
+		done \
 	fi
 
 test: ## Run unit tests
@@ -67,8 +67,8 @@ build-cross-platform-container: ## Build containers for linux/amd64 and linux/ar
 		docker buildx build \
 			--platform linux/amd64,linux/arm64 \
 			-t $(REGISTRY):$(VERSION) \
-			--cache-from type=gha\
-			--cache-to type=gha,mode=max \
+			--cache-from type=gha,scope=promgithub \
+			--cache-to type=gha,mode=max,scope=promgithub \
 			. --push; \
 	fi
 

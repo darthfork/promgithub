@@ -23,11 +23,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get go version
-        id: go_version
+      - name: Setup environment
+        id: environment
         run: |
+          source version
           GOVERSION=$(make go-version)
           echo "GOVERSION=${GOVERSION}" >> $GITHUB_ENV
+          echo "GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION}" >> $GITHUB_ENV
+          echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
+          echo "DOCKER_CLI_EXPERIMENTAL=enabled" >> $GITHUB_ENV
 
       - name: Set up Golang
         uses: actions/setup-go@v4
@@ -41,7 +45,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.61.0
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
           only-new-issues: true
           args: --config=./.golangci.yaml --out-format=colored-line-number
 
