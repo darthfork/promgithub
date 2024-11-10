@@ -123,6 +123,7 @@ func setupRouter(logger *zap.Logger) *mux.Router {
 		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
 		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		r.HandleFunc("/debug/pprof/allocs", pprof.Handler("allocs").ServeHTTP)
 	}
 
 	return r

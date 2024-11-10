@@ -3,12 +3,14 @@
 include version
 
 .DEFAULT_GOAL		:= help
+CI			?= false
 TARGET			:= promgithub
 SRC			:= ./...
 LDFLAGS			:= -X main.Version=$(VERSION) -s -w
 LDFLAGS_DBG		:= -X main.Version=$(VERSION)
 BUILDDIR		:= build
 REGISTRY		:= ghcr.io/darthfork/promgithub
+TARGETARCH		:= linux/amd64,linux/arm64
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile\
@@ -34,11 +36,13 @@ debug: LDFLAGS := $(LDFLAGS_DBG)
 debug: TARGET := $(TARGET)-debug
 debug: build
 
-cross-platform: ## Create cross-platform binaries
-cross-platform: mkdir
-	@for GOARCH in amd64 arm64; do \
-		GOOS=linux GOARCH=$$GOARCH $(MAKE) TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) build; \
-	done
+build-cross-platform: ## Create cross-platform binaries (CI only)
+build-cross-platform: mkdir
+	@if [ "$(CI)" = "true" ]; then \
+		for GOARCH in amd64 arm64; do \
+			GOOS=linux GOARCH=$$GOARCH $(MAKE) TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) build; \
+		done \
+	fi
 
 test: ## Run unit tests
 test: PROMGITHUB_WEBHOOK_SECRET := test-secret
@@ -58,21 +62,29 @@ coverage: ## Run unit tests with coverage
 	@go test -cover -v $(SRC) -coverprofile=coverage.out
 	@go tool cover -html=coverage.out
 
-build-container:
-	@docker build --progress=plain -t $(REGISTRY):$(VERSION) .
-
-push-container: build-container
-	@docker push $(REGISTRY):$(VERSION)
+build-cross-platform-container: ## Build containers for linux/amd64 and linux/arm64 (CI only)
+	@if [ "$(CI)" = "true" ]; then \
+		docker buildx build \
+			--platform linux/amd64,linux/arm64 \
+			-t $(REGISTRY):$(VERSION) \
+			--cache-from type=gha,scope=promgithub \
+			--cache-to type=gha,mode=max,scope=promgithub \
+			. --push; \
+	fi
 
 container: ## Build promgithub service container
-container: build-container
+	@docker build --progress=plain -t $(REGISTRY):$(VERSION) .
 
-release: ## Create github release and upload artifacts
-release: push-container cross-platform
-	@gh release create v$(VERSION)\
-		--title "promgithub-v$(VERSION)"\
-		--generate-notes\
-		$(BUILDDIR)/*
+release: ## Create github release and upload artifacts (CI only)
+release: build-cross-platform build-cross-platform-container
+	@if [ "$(CI)" = "true" ]; then \
+		gh release create v$(VERSION) \
+			--title "promgithub-v$(VERSION)" \
+			--generate-notes \
+			$(BUILDDIR)/*; \
+	else \
+		printf "This target is only available in CI\nTo run this locally, run \"CI=true make release\" \n"; \
+	fi
 
 clean: ## Clean build directory
 	@rm -rf $(BUILDDIR)

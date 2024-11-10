@@ -32,6 +32,7 @@ type GithubWorkflow struct {
 		HTMLURL    string     `json:"html_url"`
 	} `json:"workflow_run"`
 }
+
 type GithubJob struct {
 	Job struct {
 		ID           int        `json:"id"`
