@@ -4,13 +4,17 @@ include version
 
 .DEFAULT_GOAL		:= help
 CI			?= false
+USERNAME		:= darthfork
 TARGET			:= promgithub
 SRC			:= ./...
 LDFLAGS			:= -X main.Version=$(VERSION) -s -w
 LDFLAGS_DBG		:= -X main.Version=$(VERSION)
 BUILDDIR		:= build
-REGISTRY		:= ghcr.io/darthfork/$(TARGET)
 TARGETARCH		:= linux/amd64,linux/arm64
+CONTAINAER_REGISTRY	:= ghcr.io/$(USERNAME)/$(TARGET)
+CHART_SOURCE		:= helm/$(TARGET)
+CHART_REGISTRY		:= oci://ghcr.io/$(USERNAME)/$(TARGET)-charts
+CHART_VERSION		:= $(shell grep 'version:' $(CHART_SOURCE)/Chart.yaml | tail -n1 | awk '{ print $$2 }')
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile\
@@ -18,6 +22,10 @@ help:
 
 mkdir:
 	@mkdir -p $(BUILDDIR)
+
+setup-commit-hooks: ## Setup git commit hooks
+	@mkdir -p .git/hooks
+	@cp .github/hooks/* .git/hooks/
 
 mod: ## Update go modules
 	@go mod tidy
@@ -42,7 +50,7 @@ test:
 	@go test -v $(SRC)
 
 container: ## Build promgithub service container
-	@docker build --progress=plain -t $(REGISTRY):$(VERSION) .
+	@docker build --progress=plain -t $(CONTAINER_REGISTRY):$(VERSION) .
 
 lint: ## Run linter
 	@golangci-lint run -v\
@@ -71,10 +79,24 @@ build-cross-platform-binaries: ci-check
 build-cross-platform-container: ci-check
 	@docker buildx build \
 		--platform linux/amd64,linux/arm64 \
-		-t $(REGISTRY):$(VERSION) \
+		-t $(CONTAINER_REGISTRY):$(VERSION) \
 		--cache-from type=gha,scope=$(TARGET) \
 		--cache-to type=gha,mode=max,scope=$(TARGET) \
 		. --push
+
+update-chart-version:
+	@sed --version 2>/dev/null; \
+	if [ $$? -eq 0 ]; then \
+		sed -i "s/version: .*/version: $(VERSION)/" helm/promgithub/Chart.yaml; \
+		sed -i "s/appVersion: .*/appVersion: \"$(VERSION)\"/" helm/promgithub/Chart.yaml; \
+	else \
+		sed -i '' "s/version: .*/version: $(VERSION)/" helm/promgithub/Chart.yaml; \
+		sed -i '' "s/appVersion: .*/appVersion: \"$(VERSION)\"/" helm/promgithub/Chart.yaml; \
+	fi
+
+build-and-push-helm-chart: ci-check mkdir update-chart-version
+	@helm package $(CHART_SOURCE) -d $(BUILDDIR)
+	@helm push $(BUILDDIR)/$(TARGET)-$(CHART_VERSION).tgz $(CHART_REGISTRY)
 
 create-github-release: ci-check
 	@gh release create v$(VERSION) \
@@ -83,10 +105,11 @@ create-github-release: ci-check
 		$(BUILDDIR)/*
 
 
-release: ## Create cross-platform binaries, containers and release to github (CI only)
+release: ## Create cross-platform binaries, containers, helm chart and release to Github (CI only)
 release: ci-check
 release: build-cross-platform-binaries
 release: build-cross-platform-container
+release: build-and-push-helm-chart
 release: create-github-release
 
 clean: ## Clean build directory

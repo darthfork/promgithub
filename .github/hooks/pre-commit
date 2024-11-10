@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+# Change to the repository root
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# Run the Makefile target
+make update-chart-version
+
+# Check if the Chart.yaml was updated, stage the change
+git add helm/promgithub/Chart.yaml
+
+# Exit with non-zero status if the make command fails
+if [ $? -ne 0 ]; then
+ echo "Pre-commit hook failed (make target did not complete)"
+ exit 1
+fi
+
+echo "Pre-commit hook completed successfully"
