@@ -11,8 +11,8 @@ LDFLAGS			:= -X main.Version=$(VERSION) -s -w
 LDFLAGS_DBG		:= -X main.Version=$(VERSION)
 BUILDDIR		:= build
 TARGETARCH		:= linux/amd64,linux/arm64
-CONTAINER_REGISTRY	:= ghcr.io/$(USERNAME)/$(TARGET)
 CHART_SOURCE		:= helm/$(TARGET)
+CONTAINER_REGISTRY	:= ghcr.io/$(USERNAME)/$(TARGET)
 CHART_REGISTRY		:= oci://ghcr.io/$(USERNAME)/$(TARGET)-charts
 CHART_VERSION		:= $(shell grep 'version:' $(CHART_SOURCE)/Chart.yaml | tail -n1 | awk '{ print $$2 }')
 
