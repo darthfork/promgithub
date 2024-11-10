@@ -81,7 +81,11 @@ release: build-cross-platform build-cross-platform-container
 		gh release create v$(VERSION) \
 			--title "promgithub-v$(VERSION)" \
 			--generate-notes \
-			$(BUILDDIR)/* \
+			$(BUILDDIR)/*; \
+	else \
+		@echo "This target is only available in CI" \
+		@echo "To run this locally set CI=true"; \
+		exit 1; \
 	fi
 
 clean: ## Clean build directory
