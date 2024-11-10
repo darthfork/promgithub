@@ -75,12 +75,14 @@ build-cross-platform-container: ## Build containers for linux/amd64 and linux/ar
 container: ## Build promgithub service container
 	@docker build --progress=plain -t $(REGISTRY):$(VERSION) .
 
-release: ## Create github release and upload artifacts
+release: ## Create github release and upload artifacts (CI only)
 release: build-cross-platform build-cross-platform-container
-	@gh release create v$(VERSION)\
-		--title "promgithub-v$(VERSION)"\
-		--generate-notes\
-		$(BUILDDIR)/*
+	@if [ "$(CI)" = "true" ]; then \
+		gh release create v$(VERSION) \
+			--title "promgithub-v$(VERSION)" \
+			--generate-notes \
+			$(BUILDDIR)/* \
+	fi
 
 clean: ## Clean build directory
 	@rm -rf $(BUILDDIR)
