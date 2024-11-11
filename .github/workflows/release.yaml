@@ -1,6 +1,10 @@
 name: Release promgithub
 
 on:
+  # Temp for testing
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -29,6 +33,7 @@ jobs:
       - name: Setup environment
         id: environment
         run: |
+          env
           GOVERSION=$(make go-version)
           echo "GOVERSION=${GOVERSION}" >> $GITHUB_ENV
           echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
@@ -50,7 +55,9 @@ jobs:
           username: ${{ env.USERNAME }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: make release
+      - name: Build Container
+        run: make build-cross-platform-container
+      #- name: Create Release
+      #  env:
+      #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #  run: make release
