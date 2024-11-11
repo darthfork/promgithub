@@ -9,20 +9,22 @@ sed --version 2>/dev/null
 
 # Update chart version
 if [ $? -eq 0 ]; then
+    # Using GNU sed (Linux)
     sed -i "s/version: .*/version: $VERSION/" helm/promgithub/Chart.yaml
     sed -i "s/appVersion: .*/appVersion: \"$VERSION\"/" helm/promgithub/Chart.yaml
 else
+    # Using BSD sed (macOS)
     sed -i '' "s/version: .*/version: $VERSION/" helm/promgithub/Chart.yaml
     sed -i '' "s/appVersion: .*/appVersion: \"$VERSION\"/" helm/promgithub/Chart.yaml
 fi
-
-# Check if the Chart.yaml was updated, stage the change
-git add helm/promgithub/Chart.yaml
 
 # Exit with non-zero status if the make command fails
 if [ $? -ne 0 ]; then
     echo "Pre-commit hook failed (make target did not complete)"
     exit 1
 fi
+
+# Stage the changes if Chart.yaml was updated
+git add helm/promgithub/Chart.yaml
 
 echo "Pre-commit hook completed successfully"

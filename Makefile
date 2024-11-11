@@ -67,8 +67,9 @@ coverage: ## Run unit tests with coverage
 
 ci-check:
 	@if [ "$(CI)" = "false" ]; then \
-		printf "This target is only available in CI\nTo run this locally, run \"CI=true make <your-target>\" \n"; \
-		exit 1; \
+		printf "\033[31mError: This target is only intended for CI builds\n\n"; \
+		printf "\033[0mTo override this lock, run \033[32m\"CI=true make <your-target>\" \n\n\033[0m"; \
+		exit 1 >/dev/null 2>&1; \
 	fi
 
 build-cross-platform-binaries: ci-check
