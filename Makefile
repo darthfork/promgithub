@@ -50,7 +50,14 @@ test: mod
 	@go test -v $(SRC)
 
 container: ## Build promgithub service container
-	@docker build --progress=plain -t $(CONTAINER_REGISTRY):$(VERSION) .
+	#@docker build --progress=plain -t $(CONTAINER_REGISTRY):$(VERSION) .
+	@docker buildx build \
+		--platform linux/amd64\
+		-t $(CONTAINER_REGISTRY):temp \
+		--cache-to mode=max,type=gha,url=$(ACTIONS_RUNTIME_URL),token=$(GITHUB_TOKEN),scope=$(TARGET)\
+		--cache-from type=gha,url=$(ACTIONS_RUNTIME_URL),token=$(GITHUB_TOKEN),scope=$(TARGET)\
+		. --push
+
 
 lint: ## Run linter
 	@golangci-lint run -v\
@@ -81,8 +88,8 @@ build-cross-platform-container: ci-check
 	@docker buildx build \
 		--platform linux/amd64,linux/arm64 \
 		-t $(CONTAINER_REGISTRY):$(VERSION) \
-		--cache-from type=gha,scope=$(TARGET) \
-		--cache-to type=gha,mode=max,scope=$(TARGET) \
+		--cache-to mode=max,type=gha,url=$(ACTIONS_RUNTIME_URL),token=$(ACTIONS_RUNTIME_TOKEN),scope=$(TARGET)\
+		--cache-from type=gha,url=$(ACTIONS_RUNTIME_URL),token=$(ACTIONS_RUNTIME_TOKEN),scope=$(TARGET)\
 		. --push
 
 build-and-push-helm-chart: ci-check mkdir
