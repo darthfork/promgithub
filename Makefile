@@ -16,24 +16,6 @@ CONTAINER_REGISTRY	:= ghcr.io/$(USERNAME)/$(TARGET)
 CHART_REGISTRY		:= oci://ghcr.io/$(USERNAME)/$(TARGET)-charts
 CHART_VERSION		:= $(shell grep 'version:' $(CHART_SOURCE)/Chart.yaml | tail -n1 | awk '{ print $$2 }')
 
-help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile\
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
-
-mkdir:
-	@mkdir -p $(BUILDDIR)
-
-setup-commit-hooks: ## Setup git commit hooks
-	@mkdir -p .git/hooks
-	@cp .github/hooks/* .git/hooks/
-
-mod: ## Update go modules
-	@go mod tidy
-	@go mod verify
-
-go-version: ## Get the Go version from go.mod
-	@grep '^go ' go.mod | awk '{print $$2}'
-
 build: ## Build promgithub service binary
 build: CGO_ENABLED := 0
 build: mkdir
@@ -46,13 +28,15 @@ debug: build
 
 test: ## Run unit tests
 test: PROMGITHUB_WEBHOOK_SECRET := test-secret
-test: mod
+test:
 	@go test -v $(SRC)
 
-container: ## Build promgithub service container
-	@docker build --progress=plain -t $(CONTAINER_REGISTRY):$(VERSION) .
+coverage: ## Run unit tests with coverage
+	@go test -cover -v $(SRC) -coverprofile=coverage.out
+	@go tool cover -html=coverage.out
 
-lint: ## Run linter
+
+lint: ## Lint golang source files
 	@golangci-lint run -v\
 		--config=./.golangci.yaml\
 		--timeout=5m\
@@ -61,18 +45,18 @@ lint: ## Run linter
 fmt: ## Format golang source files
 	@go fmt $(SRC)
 
-coverage: ## Run unit tests with coverage
-	@go test -cover -v $(SRC) -coverprofile=coverage.out
-	@go tool cover -html=coverage.out
+mod: ## Update go modules
+	@go mod tidy
+	@go mod verify
 
-ci-check:
-	@if [ "$(CI)" = "false" ]; then \
-		printf "\033[31mError: This target is only intended for CI builds\n\n"; \
-		printf "\033[0mTo override this lock, run \033[32m\"CI=true make <your-target>\" \n\n\033[0m"; \
-		exit 1 >/dev/null 2>&1; \
-	fi
+container: ## Build promgithub service container
+	@docker build --progress=plain -t $(CONTAINER_REGISTRY):$(VERSION) .
 
-build-cross-platform-binaries: ci-check mkdir
+package-helm-chart: ## Package promgithub helm chart
+package-helm-chart: mkdir
+	@helm package $(CHART_SOURCE) -d $(BUILDDIR)
+
+build-cross-platform-binaries: mkdir
 	@for GOARCH in amd64 arm64; do \
 		GOOS=linux GOARCH=$$GOARCH $(MAKE) TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) build; \
 	done
@@ -85,8 +69,7 @@ build-cross-platform-container: ci-check
 		--cache-to type=gha,mode=max,scope=$(TARGET) \
 		. --push
 
-build-and-push-helm-chart: ci-check mkdir
-	@helm package $(CHART_SOURCE) -d $(BUILDDIR)
+release-helm-chart: ci-check package-helm-chart
 	@helm push $(BUILDDIR)/$(TARGET)-$(CHART_VERSION).tgz $(CHART_REGISTRY)
 
 create-github-release: ci-check
@@ -95,13 +78,33 @@ create-github-release: ci-check
 		--generate-notes \
 		$(BUILDDIR)/*
 
-
 release: ## Create cross-platform binaries, containers, helm chart and release to Github (CI only)
 release: ci-check
 release: build-cross-platform-binaries
 release: build-cross-platform-container
-release: build-and-push-helm-chart
+release: release-helm-chart
 release: create-github-release
+
+go-version: ## Get the Go version from go.mod
+	@grep '^go ' go.mod | awk '{print $$2}'
+
+help:
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile\
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+mkdir:
+	@mkdir -p $(BUILDDIR)
+
+setup-commit-hooks: ## Setup git commit hooks
+	@mkdir -p .git/hooks
+	@cp .github/hooks/* .git/hooks/
+
+ci-check:
+	@if [ "$(CI)" = "false" ]; then \
+		printf "\033[31mError: This target is only intended for CI builds\n\n"; \
+		printf "\033[0mTo override this lock, run \033[32m\"CI=true make <your-target>\" \n\n\033[0m"; \
+		exit 1 >/dev/null 2>&1; \
+	fi
 
 clean: ## Clean build directory
 	@rm -rf $(BUILDDIR)

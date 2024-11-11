@@ -49,7 +49,7 @@ var (
 	)
 )
 
-func APIHandler(logger *zap.Logger) func(http.Handler) http.Handler {
+func apiHandler(logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -110,7 +110,7 @@ func init() {
 
 func setupRouter(logger *zap.Logger) *mux.Router {
 	r := mux.NewRouter()
-	r.Use(APIHandler(logger))
+	r.Use(apiHandler(logger))
 
 	r.HandleFunc("/health", healthCheck).Methods("GET")
 	r.Handle("/metrics", promhttp.Handler())

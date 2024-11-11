@@ -96,7 +96,7 @@ func TestSetupRouter(t *testing.T) {
 	}
 }
 
-func TestAPIHandler(t *testing.T) {
+func TestApiHandler(t *testing.T) {
 	apiCallsCounter.Reset()
 	reg.MustRegister(apiCallsCounter)
 
@@ -108,8 +108,8 @@ func TestAPIHandler(t *testing.T) {
 		}
 	})
 
-	// Wrap the test handler with the APIHandler middleware
-	handler := APIHandler(logger)(testHandler)
+	// Wrap the test handler with the apiHandler middleware
+	handler := apiHandler(logger)(testHandler)
 
 	// Create a test HTTP server
 	server := httptest.NewServer(handler)

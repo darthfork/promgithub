@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 # Change to the repository root
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 source ./version
 
-sed --version 2>/dev/null
-
 # Update chart version
-if [ $? -eq 0 ]; then
+if sed --version 2>/dev/null; then
     # Using GNU sed (Linux)
     sed -i "s/version: .*/version: $VERSION/" helm/promgithub/Chart.yaml
     sed -i "s/appVersion: .*/appVersion: \"$VERSION\"/" helm/promgithub/Chart.yaml
@@ -18,13 +18,10 @@ else
     sed -i '' "s/appVersion: .*/appVersion: \"$VERSION\"/" helm/promgithub/Chart.yaml
 fi
 
-# Exit with non-zero status if the make command fails
-if [ $? -ne 0 ]; then
-    echo "Pre-commit hook failed (make target did not complete)"
-    exit 1
-fi
+# Run go fmt to format the source code
+make fmt
 
-# Stage the changes if Chart.yaml was updated
-git add helm/promgithub/Chart.yaml
+# Stage the changes if Chart.yaml and go source files are modified
+git add helm/promgithub/Chart.yaml src/
 
 echo "Pre-commit hook completed successfully"
