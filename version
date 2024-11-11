@@ -1,4 +1,4 @@
 #!/usr/bin/env make
 
-VERSION=0.0.4-alpha
+VERSION=0.0.5
 GOLANGCI_LINT_VERSION=v1.61.0

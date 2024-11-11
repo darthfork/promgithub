@@ -1,0 +1,73 @@
+# Default values for promgithub.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This will set the replicaset count and revision history limit.
+replicaCount: 1
+revisionHistoryLimit: 10
+
+secrets:
+  github_webhook_secret: ""
+
+environment: production # Set the environment to development to enable debug logging and profiling endpoints
+
+# This sets the container image more information can be found here
+image:
+  repository: ghcr.io/darthfork/promgithub
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+# This is for the secretes for pulling an image from a private repository
+imagePullSecrets: []
+
+# This is to override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+# This is for setting Kubernetes Annotations to a Pod.
+podAnnotations: {}
+
+# This is for setting Kubernetes Labels to a Pod.
+podLabels: {}
+
+# This is for setting up the promgithub service
+service:
+  # This sets the service type
+  type: ClusterIP
+  # This sets the ports
+  port: 8080
+
+resources: {}
+  # Used to set the resource limits and requests for the container
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# This is to setup the liveness and readiness probes
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+
+# This section is for setting up autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 10
+  targetMemoryUtilizationPercentage: 80
+  # targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

@@ -12,17 +12,15 @@ The service expects the following parameters to be set:
   - `PROMGITHUB_WEBHOOK_SECRET`: The secret used to validate incoming GitHub webhook requests.
   - `PROMGITHUB_SERVICE_PORT` (optional): Service API port (default is `8080`).
 
-### Deploying in kubernetes
+## Deploying in kubernetes
 
-To deploy the service in a kubernetes cluster you can use the provided helm chart.
+To deploy the service in a kubernetes cluster you can use the provided helm chart from the [promgithub chart repository](https://github.com/darthfork/promgithub/pkgs/container/promgithub-charts%2Fpromgithub)
 
-**TODO:** Add helm chart details
+When deploying with kubernetes add the following resources and configurations to your `promgithub` deployment
 
-When deploying with kubernetes add the following resources to your `promgithub` deployment
+### Chart.yaml
 
-### Kubernetes deployment requirements
-
-Add the helm repo as a dependency to your chart deployment:
+Add the helm repository as a dependency to your chart deployment:
 
 ```yaml
 apiVersion: v2
@@ -37,25 +35,34 @@ dependencies:
     repository: "oci://ghcr.io/darthfork/promgithub-charts"
 ```
 
-#### Resources
+### Ingress
 
--  **Ingress**: Ingress allowing github to access `promgithub` deployment
+Add an Ingress configuration allowing your github instance to access `promgithub` deployment. More details can be found [here](https://kubernetes.io/docs/concepts/services-networking/ingress/)
 
-#### Chart and Values
 
-Create a values file with the webhook-secret and (optional) service-port values for your chart
+### Values
+
+Create a values file with the webhook secret and (optional) service port values for your chart
 
 ```yaml
 promgithub:
-  webhook-secret: <your webhook secret>
-  service-port: <service port>
+  secrets:
+    github_webhook_secret: <your webhook secret> # Mounted as PROMGITHUB_WEBHOOK_SECRET in the deployment
+  service:
+    port: <service port> # optional (default is 8080)
 ```
+
+**Default values**: The default values file for promgithub can be found [here](https://github.com/darthfork/promgithub/blob/main/helm/promgithub/values.yaml)
+
+### Metrics Scraping
+
+Create prometheus configuration resource with the chart for scraping metrics from the `/metrics` endpoint from promgithub service. For more details see the [Prometheus scraping configuration](#prometheus-scraping-configuration) below.
 
 ## Deploying service in a container
 
 To deploy the service in a container using a container management environment like fargate/docker-compose, you can use the `promgithub` container from the [GHCR container repository](https://github.com/darthfork/promgithub/pkgs/container/promgithub)
 
-#### Docker CLI
+### Docker CLI
 
 Run the service using docker cli as follows:
 
@@ -67,7 +74,7 @@ docker run\
     ghcr.io/darthfork/promgithub:<version>
 ```
 
-#### Docker Compose
+### Docker Compose
 
 To run the service in docker compose, create a compose file as below:
 
