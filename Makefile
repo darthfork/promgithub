@@ -4,6 +4,10 @@ include version
 
 .DEFAULT_GOAL		:= help
 CI			?= false
+COLOR_CYAN		:= \033[36m
+COLOR_RESET		:= \033[0m
+COLOR_GREEN		:= \033[32m
+COLOR_RED		:= \033[31m
 USERNAME		:= darthfork
 TARGET			:= promgithub
 SRC			:= ./...
@@ -58,7 +62,8 @@ package-helm-chart: mkdir
 
 build-cross-platform-binaries: mkdir
 	@for GOARCH in amd64 arm64; do \
-		GOOS=linux GOARCH=$$GOARCH $(MAKE) TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) build; \
+		echo "${COLOR_GREEN}Building $(TARGET)-linux-$$GOARCH-$(VERSION)${COLOR_RESET}"; \
+		GOOS=linux GOARCH=$$GOARCH TARGET=$(TARGET)-linux-$$GOARCH-$(VERSION) $(MAKE) build; \
 	done
 
 build-cross-platform-container: ci-check
@@ -90,7 +95,7 @@ go-version: ## Get the Go version from go.mod
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile\
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "${COLOR_CYAN}%-20s${COLOR_RESET} %s\n", $$1, $$2}'
 
 mkdir:
 	@mkdir -p $(BUILDDIR)
@@ -101,8 +106,8 @@ setup-commit-hooks: ## Setup git commit hooks
 
 ci-check:
 	@if [ "$(CI)" = "false" ]; then \
-		printf "\033[31mError: This target is only intended for CI builds\n\n"; \
-		printf "\033[0mTo override this lock, run \033[32m\"CI=true make <your-target>\" \n\n\033[0m"; \
+		printf "${COLOR_RED}Error: This target is only intended for CI builds\n\n${COLOR_RESET}"; \
+		printf "${COLOR_RESET}To override this lock, run ${COLOR_GREEN}\"CI=true make <your-target>\" \n\n${COLOR_RESET}"; \
 		exit 1 >/dev/null 2>&1; \
 	fi
 
