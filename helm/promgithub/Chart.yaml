@@ -5,8 +5,8 @@ description: Helm Chart for prometheus github exporter
 type: application
 
 # Chart version
-version: 0.0.6
+version: 0.0.7
 
 # This is the version number of the application being deployed. This version number co-relates to the version
 # of promgithub deployed with the chart. Update this version to deploy a new version of the application.
-appVersion: "0.0.6"
+appVersion: "0.0.7"

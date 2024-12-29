@@ -1,3 +1,4 @@
 #!/usr/bin/env make
 
-VERSION=0.0.6
+# shellcheck disable=SC2034
+VERSION=0.0.7

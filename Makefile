@@ -12,7 +12,7 @@ USERNAME		:= darthfork
 TARGET			:= promgithub
 SRC			:= ./...
 LDFLAGS			:= -X main.Version=$(VERSION) -s -w
-LDFLAGS_DBG		:= -X main.Version=$(VERSION)
+LDFLAGS_DBG		:= -X main.enableDebug=true -X main.Version=$(VERSION)
 BUILDDIR		:= build
 TARGETARCH		:= linux/amd64,linux/arm64
 CHART_SOURCE		:= helm/promgithub

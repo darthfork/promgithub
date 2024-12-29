@@ -29,6 +29,7 @@ var (
 	Version             string
 	githubWebhookSecret []byte
 	logger              *zap.Logger
+	enableDebug         string // Compile time flag to enable debug mode
 	debug               bool
 
 	apiCallsCounter = promauto.NewCounterVec(
@@ -94,7 +95,7 @@ func init() {
 	var err error
 	loggerConfig := zap.NewProductionConfig()
 
-	debug = os.Getenv("ENVIRONMENT") == "development"
+	debug = (os.Getenv("ENVIRONMENT") == "development") || (enableDebug == "true")
 
 	if debug {
 		loggerConfig = zap.NewDevelopmentConfig()
@@ -119,11 +120,16 @@ func setupRouter(logger *zap.Logger) *mux.Router {
 	// Profiling endpoints
 	if debug {
 		r.HandleFunc("/debug/pprof/", pprof.Index)
+		r.HandleFunc("/debug/pprof/allocs", pprof.Handler("allocs").ServeHTTP)
+		r.HandleFunc("/debug/pprof/block", pprof.Handler("block").ServeHTTP)
 		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		r.HandleFunc("/debug/pprof/goroutine", pprof.Handler("goroutine").ServeHTTP)
+		r.HandleFunc("/debug/pprof/heap", pprof.Handler("heap").ServeHTTP)
+		r.HandleFunc("/debug/pprof/mutex", pprof.Handler("mutex").ServeHTTP)
 		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
 		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		r.HandleFunc("/debug/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
 		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		r.HandleFunc("/debug/pprof/allocs", pprof.Handler("allocs").ServeHTTP)
 	}
 
 	return r
