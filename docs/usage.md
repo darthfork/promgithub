@@ -70,7 +70,7 @@ Run the service using docker cli as follows:
 docker run\
     -e PROMGITHUB_WEBHOOK_SECRET=<your webhook secret>\
     -e PROMGITHUB_SERVICE_PORT=<service port>\
-    -p <HOST_PORT>:<CONTAINER_PORT>
+    -p <HOST_PORT>:<CONTAINER_PORT>\
     ghcr.io/darthfork/promgithub:<version>
 ```
 
