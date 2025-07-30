@@ -1,4 +1,5 @@
 build/
 coverage.out
+coverage.html
 *.tgz
 values-test.yaml
