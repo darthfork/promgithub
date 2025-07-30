@@ -149,8 +149,17 @@ func main() {
 
 	r := setupRouter(logger)
 
+	server := &http.Server{
+		Addr:           ":" + port,
+		Handler:        r,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 MB
+	}
+
 	logger.Info("Starting server", zap.String("port", port))
-	if err := http.ListenAndServe(":"+port, r); err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		logger.Fatal("Error starting server", zap.Error(err))
 	}
 }
