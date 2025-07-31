@@ -1,25 +1,16 @@
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-    # List of functions to exclude from checking.
-    exclude-functions:
-      - '(*go.uber.org/zap.Logger).Sync'
+version: "2"
+
+run:
+  timeout: 5m
+  go: '1.23'
 
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
-
-run:
-  timeout: 5m
-
-issues:
-  skip-dirs:
-    - vendor
-  skip-files:
-    - generated.go
+    - gocritic
+    - revive
+    - misspell
