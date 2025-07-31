@@ -48,7 +48,7 @@ jobs:
           only-new-issues: true
           args: --config=./.golangci.yaml
 
-      - name: Security check
+      - name: Security Scan
         uses: securego/gosec@v2.22.7
         with:
           args: ./...
