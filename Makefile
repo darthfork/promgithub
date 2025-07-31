@@ -42,9 +42,7 @@ coverage: ## Run unit tests with coverage
 
 
 lint: ## Lint golang source files
-	@golangci-lint run -v \
-		--config=./.golangci.yaml \
-		--timeout=5m
+	@golangci-lint run -v --config=./.golangci.yaml
 
 fmt: ## Format golang source files
 	@go fmt $(SRC)

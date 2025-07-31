@@ -60,8 +60,8 @@ func TestHealthCheck(t *testing.T) {
 
 func TestSetupRouter(t *testing.T) {
 	// Set environment variables for the test
-	os.Setenv("PROMGITHUB_WEBHOOK_SECRET", "testsecret")
-	defer os.Unsetenv("PROMGITHUB_WEBHOOK_SECRET")
+	_ = os.Setenv("PROMGITHUB_WEBHOOK_SECRET", "testsecret")
+	defer func() { _ = os.Unsetenv("PROMGITHUB_WEBHOOK_SECRET") }()
 
 	// Initialize the logger
 	logger := zap.NewNop()
@@ -78,7 +78,7 @@ func TestSetupRouter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to send HTTP request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
@@ -89,7 +89,7 @@ func TestSetupRouter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to send HTTP request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
@@ -101,7 +101,7 @@ func TestApiHandler(t *testing.T) {
 	reg.MustRegister(apiCallsCounter)
 
 	// Create a test HTTP handler
-	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte("OK")); err != nil {
 			t.Errorf("Failed to write response: %v", err)
@@ -123,7 +123,7 @@ func TestApiHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to send HTTP request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Verify the response status code
 	if resp.StatusCode != http.StatusOK {

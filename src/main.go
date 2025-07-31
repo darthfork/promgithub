@@ -82,7 +82,7 @@ func apiHandler(logger *zap.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-func healthCheck(w http.ResponseWriter, r *http.Request) {
+func healthCheck(w http.ResponseWriter, _ *http.Request) {
 	response := HealthCheckResposne{Status: "ok", Version: Version}
 	err := json.NewEncoder(w).Encode(response)
 	if err != nil {
@@ -106,7 +106,7 @@ func init() {
 		panic(err)
 	}
 
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 }
 
 func setupRouter(logger *zap.Logger) *mux.Router {

@@ -1,3 +1,4 @@
+// Package main provides GitHub webhook handling and Prometheus metrics collection.
 package main
 
 import (
