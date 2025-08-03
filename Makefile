@@ -31,9 +31,8 @@ debug: LDFLAGS := $(LDFLAGS_DBG)
 debug: TARGET := $(TARGET)-debug
 debug: build
 
-test: ## Run unit tests
 test: PROMGITHUB_WEBHOOK_SECRET := test-secret
-test:
+test: ## Run unit tests
 	@echo "${COLOR_GREEN}Running Unit Tests..${COLOR_RESET}"
 	@go test -v $(SRC)
 
@@ -88,16 +87,14 @@ create-github-release: ci-check
 
 security: mkdir ## Run comprehensive security checks
 	@echo "${COLOR_GREEN}Running vulnerability checks...${COLOR_RESET}"
-	@go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	@govulncheck $(SRC)
 	@echo "${COLOR_GREEN}Running static security analysis...${COLOR_RESET}"
-	@gosec -conf=.gosec.json -fmt=sarif -out=build/gosec-report.sarif ./... || true
-	@gosec -conf=.gosec.json ./...
+	@gosec -conf=.gosec.json -fmt=sarif -out=build/gosec-report.sarif $(SRC)
 
 
 container-security: mkdir ## Run container security scan
 	@echo "${COLOR_GREEN}Running container security scan...${COLOR_RESET}"
-	@trivy image --format json --output build/trivy-report.json $(CONTAINER_REGISTRY):$(VERSION) || true
-	@trivy image $(CONTAINER_REGISTRY):$(VERSION)
+	@trivy image --format json --output build/trivy-report.json $(CONTAINER_REGISTRY):$(VERSION)
 
 test-all: test coverage security lint ## Run all tests and checks
 
