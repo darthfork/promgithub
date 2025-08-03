@@ -186,7 +186,6 @@ func updateWorkflowMetrics(body []byte) {
 }
 
 func updateJobMetrics(body []byte) {
-
 	var payload GithubJob
 
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -265,7 +264,6 @@ func updateJobMetrics(body []byte) {
 }
 
 func updateCommitMetrics(body []byte) {
-
 	var payload GithubCommit
 
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -284,7 +282,6 @@ func updateCommitMetrics(body []byte) {
 }
 
 func updatePullRequestMetrics(body []byte) {
-
 	var payload GithubPullRequest
 
 	if err := json.Unmarshal(body, &payload); err != nil {

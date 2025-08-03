@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	// Workflow metrics
+	// Workflow metrics.
 	workflowStatusCounter = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "promgithub_workflow_status",
@@ -48,7 +48,7 @@ var (
 		[]string{"repository", "branch", "workflow_conclusion", "workflow_name"},
 	)
 
-	// Job metrics
+	// Job metrics.
 	jobStatusCounter = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "promgithub_job_status",

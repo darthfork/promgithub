@@ -1,0 +1,31 @@
+# Build artifacts
+build/
+coverage.out
+coverage.html
+*.log
+
+# Development files
+.git/
+.github/
+docs/
+test_data/
+README.md
+
+# Security reports
+gosec-report.json
+trivy-report.json
+secrets-report.json
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

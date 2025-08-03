@@ -1,4 +1,4 @@
-.PHONY: build container cross-platform debug release test test-all go-version coverage fmt lint deps security mod clean dev-setup
+.PHONY: build container container-security cross-platform debug release test test-all go-version coverage fmt lint deps security mod clean dev-setup
 
 include version
 
@@ -34,6 +34,7 @@ debug: build
 test: ## Run unit tests
 test: PROMGITHUB_WEBHOOK_SECRET := test-secret
 test:
+	@echo "${COLOR_GREEN}Running Unit Tests..${COLOR_RESET}"
 	@go test -v $(SRC)
 
 coverage: ## Run unit tests with coverage
@@ -42,6 +43,7 @@ coverage: ## Run unit tests with coverage
 
 
 lint: ## Lint golang source files
+	@echo "${COLOR_GREEN}Running Linter Checks..${COLOR_RESET}"
 	@golangci-lint run -v --config=./.golangci.yaml
 
 fmt: ## Format golang source files
@@ -83,10 +85,18 @@ create-github-release: ci-check
 		--generate-notes \
 		$(BUILDDIR)/*
 
-security: ## Run security checks
+security: mkdir ## Run comprehensive security checks
+	@echo "${COLOR_GREEN}Running vulnerability checks...${COLOR_RESET}"
 	@go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-	@gosec ./...
+	@echo "${COLOR_GREEN}Running static security analysis...${COLOR_RESET}"
+	@gosec -conf=.gosec.json -fmt=sarif -out=build/gosec-report.sarif ./... || true
+	@gosec -conf=.gosec.json ./...
 
+
+container-security: container mkdir ## Run container security scan
+	@echo "${COLOR_GREEN}Running container security scan...${COLOR_RESET}"
+	@go run github.com/aquasecurity/trivy@latest image --format json --output build/trivy-report.json $(CONTAINER_REGISTRY):$(VERSION) || true
+	@go run github.com/aquasecurity/trivy@latest image $(CONTAINER_REGISTRY):$(VERSION)
 test-all: test coverage security lint ## Run all tests and checks
 
 dev-setup: deps setup-commit-hooks ## Setup development environment

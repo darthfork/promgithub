@@ -21,6 +21,20 @@ fi
 # Run go fmt to format the source code
 make fmt
 
+# Run security checks
+echo "Running security checks..."
+make security || {
+    echo "Security checks failed. Please fix the issues before committing."
+    exit 1
+}
+
+# Run linting
+echo "Running linting checks..."
+make lint || {
+    echo "Linting failed. Please fix the issues before committing."
+    exit 1
+}
+
 # Stage the changes if Chart.yaml and go source files are modified
 git add helm/promgithub/Chart.yaml src/
 

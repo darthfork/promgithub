@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  security-events: write
 
 jobs:
   build:
@@ -29,6 +30,8 @@ jobs:
           source version
           GOVERSION=$(make go-version)
           echo "GOVERSION=${GOVERSION}" >> $GITHUB_ENV
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "GOSEC_VERSION=v2.22.7" >> $GITHUB_ENV
           echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
           echo "DOCKER_CLI_EXPERIMENTAL=enabled" >> $GITHUB_ENV
 
@@ -48,10 +51,23 @@ jobs:
           only-new-issues: true
           args: --config=./.golangci.yaml
 
+      - name: Install Tools and Dependencies
+        run: |
+          # Install gosec for static security analysis
+          curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh |\
+            sh -s -- -b $(go env GOPATH)/bin "${{ env.GOSEC_VERSION }}"
+          # Install dependencies
+          make deps
+
+
       - name: Security Scan
-        uses: securego/gosec@v2.22.7
+        run: make security
+
+      - name: Upload Security Scan Results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
         with:
-          args: ./...
+          sarif_file: build/gosec-report.sarif
 
       - name: Build
         run: make build
@@ -64,3 +80,16 @@ jobs:
 
       - name: Build Container
         run: make container
+
+      - name: Container Security Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/darthfork/promgithub:${{ env.VERSION }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'

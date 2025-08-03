@@ -106,7 +106,13 @@ func init() {
 		panic(err)
 	}
 
-	defer func() { _ = logger.Sync() }()
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			// Logger sync errors on program exit are typically not critical
+			// and often occur when stdout/stderr are closed before sync
+			_ = err // Explicitly ignore the error
+		}
+	}()
 }
 
 func setupRouter(logger *zap.Logger) *mux.Router {

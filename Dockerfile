@@ -1,31 +1,49 @@
+# Build stage
 FROM golang:1.23.10 AS builder
 
+# Security: Set non-root user for build
+RUN useradd -u 10001 -m builder
+USER builder
+
 ENV GOOS=linux
+ENV CGO_ENABLED=0
 
 WORKDIR /app
 
-COPY . .
+# Copy dependency files first for better caching
+COPY --chown=builder:builder go.mod go.sum ./
+RUN make deps
 
-RUN make mod
+# Copy source code
+COPY --chown=builder:builder . .
 
+# Run security checks and tests
 RUN make test
 
+# Build the application
 RUN make build
 
-FROM debian:bookworm-slim
+# Runtime stage
+FROM gcr.io/distroless/static-debian12:nonroot
 
-ENV DEBIAN_FRONTEND=noninteractive
+# Security labels
+LABEL \
+    org.opencontainers.image.title="promgithub" \
+    org.opencontainers.image.description="GitHub webhook handler for Prometheus metrics" \
+    org.opencontainers.image.vendor="darthfork" \
+    security.non-root="true" \
+    security.no-shell="true"
 
-RUN groupadd -r promgithub &&\
-    useradd -md /bin/bash --no-log-init -r -g promgithub promgithub
-
-RUN apt-get update && apt-get install -y ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# Use distroless nonroot user (uid=65532, gid=65532)
+USER nonroot:nonroot
 
 WORKDIR /app
 
-COPY --from=builder /app/build/promgithub .
+# Copy only the necessary binary
+COPY --from=builder --chown=nonroot:nonroot /app/build/promgithub /app/promgithub
 
-USER promgithub
+# Security: Run on non-privileged port
+EXPOSE 8080
 
+# Security: Use exec form to avoid shell
 CMD ["/app/promgithub"]

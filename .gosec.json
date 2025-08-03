@@ -1,0 +1,25 @@
+{
+  "severity": "medium",
+  "confidence": "medium",
+  "exclude-rules": [],
+  "exclude-dirs": ["test_data", "build"],
+  "tests": true,
+  "global": {
+    "nosec": false,
+    "audit": true
+  },
+  "rules": {
+    "G101": {
+      "pattern": "(?i)(?:password|passwd|pwd|secret|token|api_key|apikey|access_key|auth)",
+      "allowlist": [
+        "PROMGITHUB_WEBHOOK_SECRET"
+      ]
+    },
+    "G102": {
+      "pattern": "(?i)(?:sql|SELECT|INSERT|UPDATE|DELETE)"
+    },
+    "G104": {
+      "pattern": "(?i)(?:error|err)"
+    }
+  }
+}
