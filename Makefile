@@ -1,4 +1,4 @@
-.PHONY: build container container-security cross-platform debug release test test-all go-version coverage fmt lint deps security mod clean dev-setup
+.PHONY: build container container-security cross-platform debug release test test-all go-version coverage fmt lint deps security clean dev-setup
 
 include version
 
@@ -49,11 +49,9 @@ lint: ## Lint golang source files
 fmt: ## Format golang source files
 	@go fmt $(SRC)
 
-mod: ## Update go modules
+deps: ## Install/update dependencies
 	@go mod tidy
 	@go mod verify
-
-deps: mod ## Install/update dependencies
 	@go mod download
 
 container: ## Build promgithub service container
@@ -97,6 +95,7 @@ container-security: container mkdir ## Run container security scan
 	@echo "${COLOR_GREEN}Running container security scan...${COLOR_RESET}"
 	@go run github.com/aquasecurity/trivy@latest image --format json --output build/trivy-report.json $(CONTAINER_REGISTRY):$(VERSION) || true
 	@go run github.com/aquasecurity/trivy@latest image $(CONTAINER_REGISTRY):$(VERSION)
+
 test-all: test coverage security lint ## Run all tests and checks
 
 dev-setup: deps setup-commit-hooks ## Setup development environment

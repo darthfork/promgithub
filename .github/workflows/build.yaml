@@ -31,7 +31,6 @@ jobs:
           GOVERSION=$(make go-version)
           echo "GOVERSION=${GOVERSION}" >> $GITHUB_ENV
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
-          echo "GOSEC_VERSION=v2.22.7" >> $GITHUB_ENV
           echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
           echo "DOCKER_CLI_EXPERIMENTAL=enabled" >> $GITHUB_ENV
 
@@ -44,30 +43,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.3.0
-          only-new-issues: true
-          args: --config=./.golangci.yaml
-
       - name: Install Tools and Dependencies
         run: |
-          # Install gosec for static security analysis
-          curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh |\
-            sh -s -- -b $(go env GOPATH)/bin "${{ env.GOSEC_VERSION }}"
-          # Install dependencies
+          ./utils/install_tools.sh
           make deps
 
+      - name: Lint
+        run: make lint
 
       - name: Security Scan
         run: make security
-
-      - name: Upload Security Scan Results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: build/gosec-report.sarif
 
       - name: Build
         run: make build
@@ -82,14 +67,4 @@ jobs:
         run: make container
 
       - name: Container Security Scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'ghcr.io/darthfork/promgithub:${{ env.VERSION }}'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Upload Trivy scan results to GitHub Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: 'trivy-results.sarif'
+        run: make container-security
