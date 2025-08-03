@@ -30,7 +30,6 @@ jobs:
           source version
           GOVERSION=$(make go-version)
           echo "GOVERSION=${GOVERSION}" >> $GITHUB_ENV
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
           echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
           echo "DOCKER_CLI_EXPERIMENTAL=enabled" >> $GITHUB_ENV
 
@@ -45,7 +44,7 @@ jobs:
 
       - name: Install Tools and Dependencies
         run: |
-          ./utils/install_tools.sh
+          make install_tools
           make deps
 
       - name: Lint

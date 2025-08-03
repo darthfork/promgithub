@@ -54,6 +54,9 @@ deps: ## Install/update dependencies
 	@go mod verify
 	@go mod download
 
+install_tools: ## Install development tooling
+	@./utils/install_tools.sh
+
 container: ## Build promgithub service container
 	@docker build --progress=plain -t $(CONTAINER_REGISTRY):$(VERSION) .
 
@@ -91,7 +94,7 @@ security: mkdir ## Run comprehensive security checks
 	@gosec -conf=.gosec.json ./...
 
 
-container-security: container mkdir ## Run container security scan
+container-security: mkdir ## Run container security scan
 	@echo "${COLOR_GREEN}Running container security scan...${COLOR_RESET}"
 	@trivy image --format json --output build/trivy-report.json $(CONTAINER_REGISTRY):$(VERSION) || true
 	@trivy image $(CONTAINER_REGISTRY):$(VERSION)
