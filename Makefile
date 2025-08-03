@@ -93,8 +93,8 @@ security: mkdir ## Run comprehensive security checks
 
 container-security: container mkdir ## Run container security scan
 	@echo "${COLOR_GREEN}Running container security scan...${COLOR_RESET}"
-	@go run github.com/aquasecurity/trivy@latest image --format json --output build/trivy-report.json $(CONTAINER_REGISTRY):$(VERSION) || true
-	@go run github.com/aquasecurity/trivy@latest image $(CONTAINER_REGISTRY):$(VERSION)
+	@trivy image --format json --output build/trivy-report.json $(CONTAINER_REGISTRY):$(VERSION) || true
+	@trivy image $(CONTAINER_REGISTRY):$(VERSION)
 
 test-all: test coverage security lint ## Run all tests and checks
 
