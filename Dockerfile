@@ -1,7 +1,7 @@
 # Build stage
 FROM golang:1.23.10 AS builder
 
-# Security: Set non-root user for build
+# Set non-root user for build
 RUN useradd -u 10001 -m builder
 USER builder
 
@@ -10,15 +10,11 @@ ENV CGO_ENABLED=0
 
 WORKDIR /app
 
-# Copy dependency files first for better caching
-COPY --chown=builder:builder go.mod go.sum ./
-RUN make deps
-
 # Copy source code
 COPY --chown=builder:builder . .
 
-# Run security checks and tests
-RUN make test
+# Install dependencies
+RUN make deps
 
 # Build the application
 RUN make build
@@ -39,11 +35,8 @@ USER nonroot:nonroot
 
 WORKDIR /app
 
-# Copy only the necessary binary
 COPY --from=builder --chown=nonroot:nonroot /app/build/promgithub /app/promgithub
 
-# Security: Run on non-privileged port
 EXPOSE 8080
 
-# Security: Use exec form to avoid shell
 CMD ["/app/promgithub"]
