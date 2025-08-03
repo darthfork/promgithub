@@ -9,6 +9,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
+const (
+	statusQueued     = "queued"
+	statusInProgress = "in_progress"
+	statusCompleted  = "completed"
+)
+
 func TestWorkflowStatusCounter(t *testing.T) {
 	workflowStatusCounter.Reset()
 	reg.MustRegister(workflowStatusCounter)
@@ -165,7 +171,7 @@ func TestWorkflowQueuedGauge(t *testing.T) {
 	}
 
 	// Modify the status field
-	payload.Workflow.Status = "queued"
+	payload.Workflow.Status = statusQueued
 
 	// Marshal the modified struct back to JSON if needed
 	modifiedBody, err := json.Marshal(payload)
@@ -201,7 +207,7 @@ func TestWorkflowInProgressGauge(t *testing.T) {
 	}
 
 	// Modify the status field
-	payload.Workflow.Status = "in_progress"
+	payload.Workflow.Status = statusInProgress
 
 	// Marshal the modified struct back to JSON if needed
 	modifiedBody, err := json.Marshal(payload)
@@ -256,7 +262,7 @@ func TestJobQueuedGauge(t *testing.T) {
 	}
 
 	// Modify the status field
-	payload.Job.Status = "queued"
+	payload.Job.Status = statusQueued
 
 	// Marshal the modified struct back to JSON
 	modifiedBody, err := json.Marshal(payload)
@@ -292,7 +298,7 @@ func TestJobInProgressGauge(t *testing.T) {
 	}
 
 	// Modify the status field
-	payload.Job.Status = "in_progress"
+	payload.Job.Status = statusInProgress
 
 	// Marshal the modified struct back to JSON
 	modifiedBody, err := json.Marshal(payload)
@@ -329,7 +335,7 @@ func TestJobCompletedGauge(t *testing.T) {
 	}
 
 	// Modify the status field
-	payload.Job.Status = "completed"
+	payload.Job.Status = statusCompleted
 
 	// Marshal the modified struct back to JSON
 	modifiedBody, err := json.Marshal(payload)

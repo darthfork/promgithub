@@ -1,5 +1,11 @@
 build/
 coverage.out
 coverage.html
+
+# Security reports
+gosec-report.json
+trivy-report.json
+secrets-report.json
+*.sarif
 *.tgz
 values-test.yaml

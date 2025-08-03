@@ -6,6 +6,7 @@ run:
 
 linters:
   enable:
+    # Core linters
     - errcheck
     - govet
     - ineffassign
@@ -14,3 +15,61 @@ linters:
     - gocritic
     - revive
     - misspell
+    
+    # Security-focused linters
+    - gosec          # Security checker
+    - bodyclose      # Checks for unclosed HTTP response bodies
+    - goconst        # Finds repeated strings that could be constants
+    - gocognit       # Computes cognitive complexity
+    - gocyclo        # Computes cyclomatic complexity
+    - nestif         # Reports deeply nested if statements
+    - prealloc       # Finds slice declarations with non-zero initial length
+    - unconvert      # Removes unnecessary type conversions
+    - unparam        # Reports unused function parameters
+    - whitespace     # Detection of leading/trailing whitespace
+    
+    # Code quality
+    - dupl           # Tool for code clone detection
+    - godot          # Check if comments end in a period
+    - nolintlint     # Reports ill-formed or insufficient nolint directives
+
+linters-settings:
+  gosec:
+    severity: "medium"
+    confidence: "medium"
+    excludes:
+      - G101 # Look for hard coded credentials - we allow PROMGITHUB_WEBHOOK_SECRET
+    config:
+      G101:
+        pattern: "(?i)(?:password|passwd|pwd|secret|token|api_key|apikey|access_key|auth)"
+        ignore_entropy: false
+        entropy_threshold: "80.0"
+        per_char_threshold: "3.0"
+        truncate: "32"
+  
+  govet:
+    check-shadowing: true
+    
+  gocyclo:
+    min-complexity: 15
+    
+  gocognit:
+    min-complexity: 20
+    
+  dupl:
+    threshold: 100
+    
+  goconst:
+    min-len: 2
+    min-occurrences: 3
+
+issues:
+  exclude-use-default: false
+  exclude-rules:
+    # Exclude some gosec messages
+    - path: _test\.go
+      linters:
+        - gosec
+    - text: "G304: Potential file inclusion via variable"
+      linters:
+        - gosec

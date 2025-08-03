@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  security-events: write
 
 jobs:
   build:
@@ -41,17 +42,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Install Tools and Dependencies
+        run: |
+          make install_tools
+          make deps
+
       - name: Lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.3.0
-          only-new-issues: true
-          args: --config=./.golangci.yaml
+        run: make lint
 
       - name: Security Scan
-        uses: securego/gosec@v2.22.7
-        with:
-          args: ./...
+        run: make security
 
       - name: Build
         run: make build
@@ -64,3 +64,6 @@ jobs:
 
       - name: Build Container
         run: make container
+
+      - name: Container Security Scan
+        run: make container-security
