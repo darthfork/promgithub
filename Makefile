@@ -37,6 +37,7 @@ test: ## Run unit tests
 	@go test -v $(SRC)
 
 coverage: ## Run unit tests with coverage
+	@echo "${COLOR_GREEN}Running Coverage Checks..${COLOR_RESET}"
 	@go test -race -coverprofile=coverage.out -covermode=atomic $(SRC)
 	@go tool cover -html=coverage.out -o coverage.html
 
@@ -53,7 +54,7 @@ deps: ## Install/update dependencies
 	@go mod verify
 	@go mod download
 
-install_tools: ## Install development tooling
+install_tools: deps ## Install development tooling
 	@./utils/install_tools.sh
 
 container: ## Build promgithub service container
@@ -132,4 +133,3 @@ ci-check:
 clean: ## Clean build directory
 	@rm -rf $(BUILDDIR)
 	@rm -f coverage.out coverage.html
-

@@ -45,7 +45,6 @@ jobs:
       - name: Install Tools and Dependencies
         run: |
           make install_tools
-          make deps
 
       - name: Lint
         run: make lint
