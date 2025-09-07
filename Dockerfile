@@ -13,9 +13,6 @@ WORKDIR /app
 # Copy source code
 COPY --chown=builder:builder . .
 
-# Install dependencies
-RUN make deps
-
 # Build the application
 RUN make build
 
