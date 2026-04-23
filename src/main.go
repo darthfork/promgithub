@@ -170,6 +170,18 @@ func main() {
 	}
 	logRedisMode(logger, redisEnabled, redisConfig.Addr)
 
+	asyncConfig, err := newAsyncProcessorConfigFromEnv()
+	if err != nil {
+		logger.Fatal("Invalid async event processor configuration", zap.Error(err))
+	}
+	eventProcessor = newAsyncEventProcessor(asyncConfig, logger)
+	eventProcessor.Start()
+	defer eventProcessor.Stop()
+	logger.Info("Async webhook processing enabled",
+		zap.Int("workerCount", asyncConfig.WorkerCount),
+		zap.Int("queueSize", asyncConfig.QueueSize),
+	)
+
 	r := setupRouter(logger)
 
 	server := &http.Server{
