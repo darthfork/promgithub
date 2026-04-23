@@ -33,7 +33,7 @@ jobs:
           echo "DOCKER_CLI_EXPERIMENTAL=enabled" >> $GITHUB_ENV
 
       - name: Set up Golang
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         id: go
         with:
           go-version: ${{ env.GOVERSION }}

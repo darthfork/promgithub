@@ -153,6 +153,23 @@ func main() {
 	}
 	githubWebhookSecret = []byte(ghWebhookSecretEnv)
 
+	redisConfig, redisEnabled, err := loadRedisConfigFromEnv()
+	if err != nil {
+		logger.Fatal("Invalid Redis configuration", zap.Error(err))
+	}
+	if redisEnabled {
+		stateStore, err = NewRedisStateStore(redisConfig)
+		if err != nil {
+			logger.Fatal("Unable to initialize Redis state store", zap.Error(err))
+		}
+		defer func() {
+			if closeErr := stateStore.Close(); closeErr != nil {
+				logger.Warn("Failed to close Redis state store", zap.Error(closeErr))
+			}
+		}()
+	}
+	logRedisMode(logger, redisEnabled, redisConfig.Addr)
+
 	r := setupRouter(logger)
 
 	server := &http.Server{

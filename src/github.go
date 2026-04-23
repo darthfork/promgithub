@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -92,6 +93,8 @@ type runMetricDetails struct {
 	endedAt    string
 }
 
+var stateStore StateStore
+
 func validateHMAC(body []byte, signature string, secret []byte) bool {
 	h := hmac.New(sha256.New, secret)
 	h.Write(body)
@@ -114,12 +117,28 @@ func githubEventsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+	deliveryID := strings.TrimSpace(r.Header.Get("X-GitHub-Delivery"))
+	if stateStore != nil && deliveryID != "" {
+		processed, storeErr := stateStore.MarkDeliveryProcessed(ctx, deliveryID)
+		if storeErr != nil {
+			http.Error(w, "Unable to record webhook delivery", http.StatusInternalServerError)
+			logger.Error("Unable to record webhook delivery", zap.String("deliveryID", deliveryID), zap.Error(storeErr))
+			return
+		}
+		if !processed {
+			logger.Info("Skipping duplicate GitHub delivery", zap.String("deliveryID", deliveryID))
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}
+
 	eventType := r.Header.Get("X-GitHub-Event")
 	switch eventType {
 	case "workflow_run":
-		updateWorkflowMetrics(body)
+		updateWorkflowMetrics(ctx, body)
 	case "workflow_job":
-		updateJobMetrics(body)
+		updateJobMetrics(ctx, body)
 	case "push":
 		updateCommitMetrics(body)
 	case "pull_request":
@@ -193,7 +212,25 @@ func observeRunMetrics(
 	}
 }
 
-func updateWorkflowMetrics(body []byte) {
+func updateRunState(ctx context.Context, id int, details runMetricDetails, updateFn func(context.Context, int, RunState) error, entityName string) {
+	if stateStore == nil {
+		return
+	}
+
+	if err := updateFn(ctx, id, RunState{
+		Repository: details.repository,
+		Branch:     details.branch,
+		Name:       details.name,
+		Status:     details.status,
+		Conclusion: details.conclusion,
+		StartedAt:  details.startedAt,
+		EndedAt:    details.endedAt,
+	}); err != nil {
+		logger.Error("Failed to update run state in redis", zap.String("entity", entityName), zap.Int("id", id), zap.Error(err))
+	}
+}
+
+func updateWorkflowMetrics(ctx context.Context, body []byte) {
 	var payload GithubWorkflow
 
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -201,16 +238,22 @@ func updateWorkflowMetrics(body []byte) {
 		return
 	}
 
+	details := runMetricDetails{
+		repository: payload.Workflow.Repository.FullName,
+		branch:     payload.Workflow.Branch,
+		name:       payload.Workflow.Name,
+		status:     payload.Workflow.Status,
+		conclusion: payload.Workflow.Conclusion,
+		startedAt:  payload.Workflow.CreatedAt,
+		endedAt:    payload.Workflow.UpdatedAt,
+	}
+
+	if stateStore != nil {
+		updateRunState(ctx, payload.Workflow.RunID, details, stateStore.UpdateWorkflowRun, "workflow_run")
+	}
+
 	observeRunMetrics(
-		runMetricDetails{
-			repository: payload.Workflow.Repository.FullName,
-			branch:     payload.Workflow.Branch,
-			name:       payload.Workflow.Name,
-			status:     payload.Workflow.Status,
-			conclusion: payload.Workflow.Conclusion,
-			startedAt:  payload.Workflow.CreatedAt,
-			endedAt:    payload.Workflow.UpdatedAt,
-		},
+		details,
 		workflowStatusCounter,
 		workflowQueuedGauge,
 		workflowInProgressGauge,
@@ -219,7 +262,7 @@ func updateWorkflowMetrics(body []byte) {
 	)
 }
 
-func updateJobMetrics(body []byte) {
+func updateJobMetrics(ctx context.Context, body []byte) {
 	var payload GithubJob
 
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -227,16 +270,22 @@ func updateJobMetrics(body []byte) {
 		return
 	}
 
+	details := runMetricDetails{
+		repository: payload.Job.Repository.FullName,
+		branch:     payload.Job.Branch,
+		name:       payload.Job.WorkflowName,
+		status:     payload.Job.Status,
+		conclusion: payload.Job.Conclusion,
+		startedAt:  payload.Job.StartedAt,
+		endedAt:    payload.Job.CompletedAt,
+	}
+
+	if stateStore != nil {
+		updateRunState(ctx, payload.Job.ID, details, stateStore.UpdateWorkflowJob, "workflow_job")
+	}
+
 	observeRunMetrics(
-		runMetricDetails{
-			repository: payload.Job.Repository.FullName,
-			branch:     payload.Job.Branch,
-			name:       payload.Job.WorkflowName,
-			status:     payload.Job.Status,
-			conclusion: payload.Job.Conclusion,
-			startedAt:  payload.Job.StartedAt,
-			endedAt:    payload.Job.CompletedAt,
-		},
+		details,
 		jobStatusCounter,
 		jobQueuedGauge,
 		jobInProgressGauge,
