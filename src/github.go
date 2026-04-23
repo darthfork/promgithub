@@ -84,6 +84,7 @@ type GithubPullRequest struct {
 
 type runMetricDetails struct {
 	repository string
+	branch     string
 	name       string
 	status     string
 	conclusion string
@@ -140,6 +141,7 @@ func observeRunMetrics(
 ) {
 	statusCounter.WithLabelValues(
 		details.repository,
+		details.branch,
 		details.name,
 		details.status,
 		details.conclusion,
@@ -149,25 +151,30 @@ func observeRunMetrics(
 	case "queued":
 		queuedGauge.WithLabelValues(
 			details.repository,
+			details.branch,
 			details.name,
 		).Inc()
 	case "in_progress":
 		inProgressGauge.WithLabelValues(
 			details.repository,
+			details.branch,
 			details.name,
 		).Inc()
 		queuedGauge.WithLabelValues(
 			details.repository,
+			details.branch,
 			details.name,
 		).Dec()
 	case "completed":
 		completedGauge.WithLabelValues(
 			details.repository,
+			details.branch,
 			details.conclusion,
 			details.name,
 		).Inc()
 		inProgressGauge.WithLabelValues(
 			details.repository,
+			details.branch,
 			details.name,
 		).Dec()
 
@@ -177,6 +184,7 @@ func observeRunMetrics(
 			duration := endedAt.Sub(startedAt).Seconds()
 			durationHistogram.WithLabelValues(
 				details.repository,
+				details.branch,
 				details.name,
 				details.status,
 				details.conclusion,
@@ -196,6 +204,7 @@ func updateWorkflowMetrics(body []byte) {
 	observeRunMetrics(
 		runMetricDetails{
 			repository: payload.Workflow.Repository.FullName,
+			branch:     payload.Workflow.Branch,
 			name:       payload.Workflow.Name,
 			status:     payload.Workflow.Status,
 			conclusion: payload.Workflow.Conclusion,
@@ -221,6 +230,7 @@ func updateJobMetrics(body []byte) {
 	observeRunMetrics(
 		runMetricDetails{
 			repository: payload.Job.Repository.FullName,
+			branch:     payload.Job.Branch,
 			name:       payload.Job.WorkflowName,
 			status:     payload.Job.Status,
 			conclusion: payload.Job.Conclusion,

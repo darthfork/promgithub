@@ -8,16 +8,16 @@ The `promgithub` service exports the following Prometheus metrics:
 
 | Name                               | Type      | Labels                                                        | Description                               |
 |------------------------------------|-----------|---------------------------------------------------------------|-------------------------------------------|
-| `promgithub_workflow_status`       | Counter   | `repository`, `workflow_name`, `workflow_status`, `conclusion`| Total number of workflow runs with status |
-| `promgithub_workflow_duration`     | Histogram | `repository`, `workflow_name`, `workflow_status`, `conclusion`| Duration of workflow runs                 |
-| `promgithub_workflow_queued`       | Gauge     | `repository`, `workflow_name`                                 | Number of workflow runs queued            |
-| `promgithub_workflow_in_progress`  | Gauge     | `repository`, `workflow_name`                                 | Number of workflow runs in progress       |
-| `promgithub_workflow_completed`    | Gauge     | `repository`, `workflow_conclusion`,`workflow_name`           | Number of workflow runs completed         |
-| `promgithub_job_status`            | Counter   | `repository`, `workflow_name`, `job_status`, `job_conclusion` | Total number of jobs with status          |
-| `promgithub_job_duration`          | Histogram | `repository`, `workflow_name`, `job_status`, `job_conclusion` | Duration of jobs runs in seconds          |
-| `promgithub_job_queued`            | Gauge     | `repository`, `workflow_name`                                 | Number of jobs queued                     |
-| `promgithub_job_in_progress`       | Gauge     | `repository`, `workflow_name`                                 | Number of jobs in progress                |
-| `promgithub_job_completed`         | Gauge     | `repository`, `job_conclusion`, `workflow_name`               | Number of jobs completed                  |
+| `promgithub_workflow_status`       | Counter   | `repository`, `branch`, `workflow_name`, `workflow_status`, `conclusion`| Total number of workflow runs with status |
+| `promgithub_workflow_duration`     | Histogram | `repository`, `branch`, `workflow_name`, `workflow_status`, `conclusion`| Duration of workflow runs                 |
+| `promgithub_workflow_queued`       | Gauge     | `repository`, `branch`, `workflow_name`                       | Number of workflow runs queued            |
+| `promgithub_workflow_in_progress`  | Gauge     | `repository`, `branch`, `workflow_name`                       | Number of workflow runs in progress       |
+| `promgithub_workflow_completed`    | Gauge     | `repository`, `branch`, `workflow_conclusion`,`workflow_name` | Number of workflow runs completed         |
+| `promgithub_job_status`            | Counter   | `repository`, `branch`, `workflow_name`, `job_status`, `job_conclusion` | Total number of jobs with status          |
+| `promgithub_job_duration`          | Histogram | `repository`, `branch`, `workflow_name`, `job_status`, `job_conclusion` | Duration of jobs runs in seconds          |
+| `promgithub_job_queued`            | Gauge     | `repository`, `branch`, `workflow_name`                       | Number of jobs queued                     |
+| `promgithub_job_in_progress`       | Gauge     | `repository`, `branch`, `workflow_name`                       | Number of jobs in progress                |
+| `promgithub_job_completed`         | Gauge     | `repository`, `branch`, `job_conclusion`, `workflow_name`     | Number of jobs completed                  |
 | `promgithub_commit_pushed`         | Counter   | `repository`                                                  | Total number of commits pushed            |
 | `promgithub_pull_request`          | Counter   | `repository`, `base_branch`, `pull_request_status`            | Total number of pull requests             |
 
