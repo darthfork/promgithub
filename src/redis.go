@@ -91,12 +91,28 @@ func (s *RedisStateStore) MarkDeliveryProcessed(ctx context.Context, deliveryID 
 	return created, nil
 }
 
+func (s *RedisStateStore) GetWorkflowRun(ctx context.Context, runID int) (RunState, bool, error) {
+	if runID == 0 {
+		return RunState{}, false, errors.New("workflow run id is required")
+	}
+
+	return s.readState(ctx, s.key("workflow_run", fmt.Sprintf("%d", runID)))
+}
+
 func (s *RedisStateStore) UpdateWorkflowRun(ctx context.Context, runID int, state RunState) error {
 	if runID == 0 {
 		return errors.New("workflow run id is required")
 	}
 
 	return s.writeState(ctx, s.key("workflow_run", fmt.Sprintf("%d", runID)), state)
+}
+
+func (s *RedisStateStore) GetWorkflowJob(ctx context.Context, jobID int) (RunState, bool, error) {
+	if jobID == 0 {
+		return RunState{}, false, errors.New("workflow job id is required")
+	}
+
+	return s.readState(ctx, s.key("workflow_job", fmt.Sprintf("%d", jobID)))
 }
 
 func (s *RedisStateStore) UpdateWorkflowJob(ctx context.Context, jobID int, state RunState) error {
@@ -112,6 +128,23 @@ func (s *RedisStateStore) Close() error {
 		return nil
 	}
 	return s.client.Close()
+}
+
+func (s *RedisStateStore) readState(ctx context.Context, key string) (RunState, bool, error) {
+	payload, err := s.client.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return RunState{}, false, nil
+		}
+		return RunState{}, false, err
+	}
+
+	var state RunState
+	if err := json.Unmarshal([]byte(payload), &state); err != nil {
+		return RunState{}, false, err
+	}
+
+	return state, true, nil
 }
 
 func (s *RedisStateStore) writeState(ctx context.Context, key string, state RunState) error {

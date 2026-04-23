@@ -93,6 +93,25 @@ type runMetricDetails struct {
 	endedAt    string
 }
 
+type runMetricSet struct {
+	statusCounter     *prometheus.CounterVec
+	queuedGauge       *prometheus.GaugeVec
+	inProgressGauge   *prometheus.GaugeVec
+	completedGauge    *prometheus.GaugeVec
+	durationHistogram *prometheus.HistogramVec
+}
+
+type runStoreMethods struct {
+	get    func(context.Context, int) (RunState, bool, error)
+	update func(context.Context, int, RunState) error
+}
+
+const (
+	statusQueued     = "queued"
+	statusInProgress = "in_progress"
+	statusCompleted  = "completed"
+)
+
 var stateStore StateStore
 
 func validateHMAC(body []byte, signature string, secret []byte) bool {
@@ -150,83 +169,208 @@ func githubEventsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func observeRunMetrics(
-	details runMetricDetails,
-	statusCounter *prometheus.CounterVec,
-	queuedGauge *prometheus.GaugeVec,
-	inProgressGauge *prometheus.GaugeVec,
-	completedGauge *prometheus.GaugeVec,
-	durationHistogram *prometheus.HistogramVec,
-) {
-	statusCounter.WithLabelValues(
-		details.repository,
-		details.branch,
-		details.name,
-		details.status,
-		details.conclusion,
-	).Inc()
-
-	switch strings.ToLower(details.status) {
-	case "queued":
-		queuedGauge.WithLabelValues(
-			details.repository,
-			details.branch,
-			details.name,
-		).Inc()
-	case "in_progress":
-		inProgressGauge.WithLabelValues(
-			details.repository,
-			details.branch,
-			details.name,
-		).Inc()
-		queuedGauge.WithLabelValues(
-			details.repository,
-			details.branch,
-			details.name,
-		).Dec()
-	case "completed":
-		completedGauge.WithLabelValues(
-			details.repository,
-			details.branch,
-			details.conclusion,
-			details.name,
-		).Inc()
-		inProgressGauge.WithLabelValues(
-			details.repository,
-			details.branch,
-			details.name,
-		).Dec()
-
-		startedAt, err1 := time.Parse(time.RFC3339, details.startedAt)
-		endedAt, err2 := time.Parse(time.RFC3339, details.endedAt)
-		if err1 == nil && err2 == nil {
-			duration := endedAt.Sub(startedAt).Seconds()
-			durationHistogram.WithLabelValues(
-				details.repository,
-				details.branch,
-				details.name,
-				details.status,
-				details.conclusion,
-			).Observe(duration)
-		}
-	}
-}
-
-func updateRunState(ctx context.Context, id int, details runMetricDetails, updateFn func(context.Context, int, RunState) error, entityName string) {
-	if stateStore == nil {
-		return
-	}
-
-	if err := updateFn(ctx, id, RunState{
+func normalizeRunState(details runMetricDetails) RunState {
+	return RunState{
 		Repository: details.repository,
 		Branch:     details.branch,
 		Name:       details.name,
-		Status:     details.status,
-		Conclusion: details.conclusion,
+		Status:     normalizeStatus(details.status),
+		Conclusion: normalizeConclusion(details.conclusion),
 		StartedAt:  details.startedAt,
 		EndedAt:    details.endedAt,
-	}); err != nil {
+	}
+}
+
+func normalizeStatus(status string) string {
+	return strings.ToLower(strings.TrimSpace(status))
+}
+
+func normalizeConclusion(conclusion string) string {
+	return strings.ToLower(strings.TrimSpace(conclusion))
+}
+
+func stateRank(status string) int {
+	switch normalizeStatus(status) {
+	case statusQueued:
+		return 1
+	case statusInProgress:
+		return 2
+	case statusCompleted:
+		return 3
+	default:
+		return 0
+	}
+}
+
+func parseMetricTime(value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	return parsed, true
+}
+
+func shouldApplyStateTransition(previous, next RunState) bool {
+	previousRank := stateRank(previous.Status)
+	nextRank := stateRank(next.Status)
+	if nextRank < previousRank {
+		return false
+	}
+
+	if nextRank == previousRank {
+		if next.Status == previous.Status && next.Conclusion == previous.Conclusion {
+			return false
+		}
+
+		previousEndedAt, previousHasEndedAt := parseMetricTime(previous.EndedAt)
+		nextEndedAt, nextHasEndedAt := parseMetricTime(next.EndedAt)
+		if previousHasEndedAt && nextHasEndedAt && nextEndedAt.Before(previousEndedAt) {
+			return false
+		}
+
+		if previousHasEndedAt && !nextHasEndedAt {
+			return false
+		}
+	}
+
+	return true
+}
+
+func applyGaugeDelta(details RunState, delta float64, queuedGauge, inProgressGauge, completedGauge *prometheus.GaugeVec) {
+	switch normalizeStatus(details.Status) {
+	case statusQueued:
+		queuedGauge.WithLabelValues(details.Repository, details.Branch, details.Name).Add(delta)
+	case statusInProgress:
+		inProgressGauge.WithLabelValues(details.Repository, details.Branch, details.Name).Add(delta)
+	case statusCompleted:
+		completedGauge.WithLabelValues(details.Repository, details.Branch, details.Conclusion, details.Name).Add(delta)
+	}
+}
+
+func observeDuration(details RunState, durationHistogram *prometheus.HistogramVec) {
+	if normalizeStatus(details.Status) != statusCompleted {
+		return
+	}
+
+	startedAt, startedOK := parseMetricTime(details.StartedAt)
+	endedAt, endedOK := parseMetricTime(details.EndedAt)
+	if !startedOK || !endedOK || endedAt.Before(startedAt) {
+		return
+	}
+
+	durationHistogram.WithLabelValues(
+		details.Repository,
+		details.Branch,
+		details.Name,
+		details.Status,
+		details.Conclusion,
+	).Observe(endedAt.Sub(startedAt).Seconds())
+}
+
+func applyStatefulMetrics(details RunState, previous *RunState, metrics runMetricSet) {
+	metrics.statusCounter.WithLabelValues(
+		details.Repository,
+		details.Branch,
+		details.Name,
+		details.Status,
+		details.Conclusion,
+	).Inc()
+
+	if previous != nil {
+		applyGaugeDelta(*previous, -1, metrics.queuedGauge, metrics.inProgressGauge, metrics.completedGauge)
+	}
+	applyGaugeDelta(details, 1, metrics.queuedGauge, metrics.inProgressGauge, metrics.completedGauge)
+
+	if previous == nil || normalizeStatus(previous.Status) != statusCompleted {
+		observeDuration(details, metrics.durationHistogram)
+	}
+}
+
+func getPreviousState(ctx context.Context, id int, getFn func(context.Context, int) (RunState, bool, error), entityName string) (*RunState, bool) {
+	if stateStore == nil {
+		return nil, true
+	}
+
+	previous, found, err := getFn(ctx, id)
+	if err != nil {
+		logger.Error("Failed to load run state from redis", zap.String("entity", entityName), zap.Int("id", id), zap.Error(err))
+		return nil, false
+	}
+	if !found {
+		return nil, true
+	}
+
+	return &previous, true
+}
+
+func persistRunState(ctx context.Context, id int, next RunState, updateFn func(context.Context, int, RunState) error, entityName string) bool {
+	if stateStore == nil {
+		return true
+	}
+
+	if err := updateFn(ctx, id, next); err != nil {
 		logger.Error("Failed to update run state in redis", zap.String("entity", entityName), zap.Int("id", id), zap.Error(err))
+		return false
+	}
+
+	return true
+}
+
+func updateTrackedRunMetrics(
+	ctx context.Context,
+	id int,
+	details runMetricDetails,
+	store runStoreMethods,
+	entityName string,
+	metrics runMetricSet,
+) {
+	nextState := normalizeRunState(details)
+
+	if stateStore == nil {
+		applyStatefulMetrics(nextState, nil, metrics)
+		return
+	}
+
+	previousState, ok := getPreviousState(ctx, id, store.get, entityName)
+	if !ok {
+		return
+	}
+	if previousState != nil && !shouldApplyStateTransition(*previousState, nextState) {
+		logger.Debug("Skipping stale or duplicate run transition", zap.String("entity", entityName), zap.Int("id", id), zap.String("status", nextState.Status), zap.String("conclusion", nextState.Conclusion))
+		return
+	}
+	if !persistRunState(ctx, id, nextState, store.update, entityName) {
+		return
+	}
+
+	applyStatefulMetrics(nextState, previousState, metrics)
+}
+
+func workflowRunStoreMethods() runStoreMethods {
+	return runStoreMethods{
+		get: func(ctx context.Context, id int) (RunState, bool, error) {
+			return stateStore.GetWorkflowRun(ctx, id)
+		},
+		update: func(ctx context.Context, id int, state RunState) error {
+			return stateStore.UpdateWorkflowRun(ctx, id, state)
+		},
+	}
+}
+
+func workflowJobStoreMethods() runStoreMethods {
+	return runStoreMethods{
+		get: func(ctx context.Context, id int) (RunState, bool, error) {
+			return stateStore.GetWorkflowJob(ctx, id)
+		},
+		update: func(ctx context.Context, id int, state RunState) error {
+			return stateStore.UpdateWorkflowJob(ctx, id, state)
+		},
 	}
 }
 
@@ -238,27 +382,27 @@ func updateWorkflowMetrics(ctx context.Context, body []byte) {
 		return
 	}
 
-	details := runMetricDetails{
-		repository: payload.Workflow.Repository.FullName,
-		branch:     payload.Workflow.Branch,
-		name:       payload.Workflow.Name,
-		status:     payload.Workflow.Status,
-		conclusion: payload.Workflow.Conclusion,
-		startedAt:  payload.Workflow.CreatedAt,
-		endedAt:    payload.Workflow.UpdatedAt,
-	}
-
-	if stateStore != nil {
-		updateRunState(ctx, payload.Workflow.RunID, details, stateStore.UpdateWorkflowRun, "workflow_run")
-	}
-
-	observeRunMetrics(
-		details,
-		workflowStatusCounter,
-		workflowQueuedGauge,
-		workflowInProgressGauge,
-		workflowCompletedGauge,
-		workflowDurationHistogram,
+	updateTrackedRunMetrics(
+		ctx,
+		payload.Workflow.RunID,
+		runMetricDetails{
+			repository: payload.Workflow.Repository.FullName,
+			branch:     payload.Workflow.Branch,
+			name:       payload.Workflow.Name,
+			status:     payload.Workflow.Status,
+			conclusion: payload.Workflow.Conclusion,
+			startedAt:  payload.Workflow.CreatedAt,
+			endedAt:    payload.Workflow.UpdatedAt,
+		},
+		workflowRunStoreMethods(),
+		"workflow_run",
+		runMetricSet{
+			statusCounter:     workflowStatusCounter,
+			queuedGauge:       workflowQueuedGauge,
+			inProgressGauge:   workflowInProgressGauge,
+			completedGauge:    workflowCompletedGauge,
+			durationHistogram: workflowDurationHistogram,
+		},
 	)
 }
 
@@ -270,27 +414,27 @@ func updateJobMetrics(ctx context.Context, body []byte) {
 		return
 	}
 
-	details := runMetricDetails{
-		repository: payload.Job.Repository.FullName,
-		branch:     payload.Job.Branch,
-		name:       payload.Job.WorkflowName,
-		status:     payload.Job.Status,
-		conclusion: payload.Job.Conclusion,
-		startedAt:  payload.Job.StartedAt,
-		endedAt:    payload.Job.CompletedAt,
-	}
-
-	if stateStore != nil {
-		updateRunState(ctx, payload.Job.ID, details, stateStore.UpdateWorkflowJob, "workflow_job")
-	}
-
-	observeRunMetrics(
-		details,
-		jobStatusCounter,
-		jobQueuedGauge,
-		jobInProgressGauge,
-		jobCompletedGauge,
-		jobDurationHistogram,
+	updateTrackedRunMetrics(
+		ctx,
+		payload.Job.ID,
+		runMetricDetails{
+			repository: payload.Job.Repository.FullName,
+			branch:     payload.Job.Branch,
+			name:       payload.Job.WorkflowName,
+			status:     payload.Job.Status,
+			conclusion: payload.Job.Conclusion,
+			startedAt:  payload.Job.StartedAt,
+			endedAt:    payload.Job.CompletedAt,
+		},
+		workflowJobStoreMethods(),
+		"workflow_job",
+		runMetricSet{
+			statusCounter:     jobStatusCounter,
+			queuedGauge:       jobQueuedGauge,
+			inProgressGauge:   jobInProgressGauge,
+			completedGauge:    jobCompletedGauge,
+			durationHistogram: jobDurationHistogram,
+		},
 	)
 }
 

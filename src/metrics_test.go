@@ -10,13 +10,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
-const (
-	statusQueued     = "queued"
-	statusInProgress = "in_progress"
-	statusCompleted  = "completed"
-)
+func withInMemoryStateStore(t *testing.T) {
+	oldStore := stateStore
+	stateStore = newInMemoryStateStore()
+	t.Cleanup(func() { stateStore = oldStore })
+}
 
 func TestWorkflowStatusCounter(t *testing.T) {
+	withInMemoryStateStore(t)
 	workflowStatusCounter.Reset()
 	reg.MustRegister(workflowStatusCounter)
 	body, err := os.ReadFile("../test_data/workflow_run.json")
@@ -25,7 +26,6 @@ func TestWorkflowStatusCounter(t *testing.T) {
 	}
 	updateWorkflowMetrics(context.Background(), body)
 
-	// Test counter
 	if err := testutil.CollectAndCompare(workflowStatusCounter, strings.NewReader(`
 		# HELP promgithub_workflow_status Total number of workflow runs with status
 		# TYPE promgithub_workflow_status counter
@@ -36,6 +36,7 @@ func TestWorkflowStatusCounter(t *testing.T) {
 }
 
 func TestJobStatusCounter(t *testing.T) {
+	withInMemoryStateStore(t)
 	jobStatusCounter.Reset()
 	reg.MustRegister(jobStatusCounter)
 	body, err := os.ReadFile("../test_data/workflow_job.json")
@@ -44,7 +45,6 @@ func TestJobStatusCounter(t *testing.T) {
 	}
 	updateJobMetrics(context.Background(), body)
 
-	// Test counter
 	if err := testutil.CollectAndCompare(jobStatusCounter, strings.NewReader(`
         # HELP promgithub_job_status Total number of jobs with status
         # TYPE promgithub_job_status counter
@@ -63,7 +63,6 @@ func TestCommitsPushedCounter(t *testing.T) {
 	}
 	updateCommitMetrics(body)
 
-	// Test counter
 	if err := testutil.CollectAndCompare(commitPushedCounter, strings.NewReader(`
 		# HELP promgithub_commit_pushed Total number of commits pushed
 		# TYPE promgithub_commit_pushed counter
@@ -82,7 +81,6 @@ func TestPullRequestsCounter(t *testing.T) {
 	}
 	updatePullRequestMetrics(body)
 
-	// Test counter
 	if err := testutil.CollectAndCompare(pullRequestCounter, strings.NewReader(`
 		# HELP promgithub_pull_request Total number of pull requests
 		# TYPE promgithub_pull_request counter
@@ -93,6 +91,7 @@ func TestPullRequestsCounter(t *testing.T) {
 }
 
 func TestWorkflowDurationHistogram(t *testing.T) {
+	withInMemoryStateStore(t)
 	workflowDurationHistogram.Reset()
 	reg.MustRegister(workflowDurationHistogram)
 	body, err := os.ReadFile("../test_data/workflow_run.json")
@@ -101,7 +100,6 @@ func TestWorkflowDurationHistogram(t *testing.T) {
 	}
 	updateWorkflowMetrics(context.Background(), body)
 
-	// Test histogram
 	if err := testutil.CollectAndCompare(workflowDurationHistogram, strings.NewReader(`
 		# HELP promgithub_workflow_duration Duration of workflow runs
 		# TYPE promgithub_workflow_duration histogram
@@ -125,6 +123,7 @@ func TestWorkflowDurationHistogram(t *testing.T) {
 }
 
 func TestJobDurationHistogram(t *testing.T) {
+	withInMemoryStateStore(t)
 	jobDurationHistogram.Reset()
 	reg.MustRegister(jobDurationHistogram)
 	body, err := os.ReadFile("../test_data/workflow_job.json")
@@ -133,7 +132,6 @@ func TestJobDurationHistogram(t *testing.T) {
 	}
 	updateJobMetrics(context.Background(), body)
 
-	// Test histogram
 	if err := testutil.CollectAndCompare(jobDurationHistogram, strings.NewReader(`
         # HELP promgithub_job_duration Duration of jobs runs in seconds
         # TYPE promgithub_job_duration histogram
@@ -157,6 +155,7 @@ func TestJobDurationHistogram(t *testing.T) {
 }
 
 func TestWorkflowQueuedGauge(t *testing.T) {
+	withInMemoryStateStore(t)
 	workflowQueuedGauge.Reset()
 	reg.MustRegister(workflowQueuedGauge)
 	body, err := os.ReadFile("../test_data/workflow_run.json")
@@ -165,16 +164,12 @@ func TestWorkflowQueuedGauge(t *testing.T) {
 	}
 
 	var payload GithubWorkflow
-
-	// Unmarshal the JSON data into the struct
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatalf("Failed to unmarshal JSON data: %v", err)
 	}
-
-	// Modify the status field
 	payload.Workflow.Status = statusQueued
+	payload.Workflow.Conclusion = ""
 
-	// Marshal the modified struct back to JSON if needed
 	modifiedBody, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("Failed to marshal modified JSON data: %v", err)
@@ -182,17 +177,17 @@ func TestWorkflowQueuedGauge(t *testing.T) {
 
 	updateWorkflowMetrics(context.Background(), modifiedBody)
 
-	// Test gauge
 	if err := testutil.CollectAndCompare(workflowQueuedGauge, strings.NewReader(`
-        # HELP promgithub_workflow_queued Number of workflow runs queued
-        # TYPE promgithub_workflow_queued gauge
-        promgithub_workflow_queued{branch="main",repository="user/repo",workflow_name="CI"} 1
-    `)); err != nil {
+		# HELP promgithub_workflow_queued Number of workflow runs queued
+		# TYPE promgithub_workflow_queued gauge
+		promgithub_workflow_queued{branch="main",repository="user/repo",workflow_name="CI"} 1
+	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
 
 func TestWorkflowInProgressGauge(t *testing.T) {
+	withInMemoryStateStore(t)
 	workflowInProgressGauge.Reset()
 	reg.MustRegister(workflowInProgressGauge)
 	body, err := os.ReadFile("../test_data/workflow_run.json")
@@ -201,16 +196,13 @@ func TestWorkflowInProgressGauge(t *testing.T) {
 	}
 
 	var payload GithubWorkflow
-
-	// Unmarshal the JSON data into the struct
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatalf("Failed to unmarshal JSON data: %v", err)
 	}
-
-	// Modify the status field
 	payload.Workflow.Status = statusInProgress
+	payload.Workflow.Conclusion = ""
+	payload.Workflow.UpdatedAt = ""
 
-	// Marshal the modified struct back to JSON if needed
 	modifiedBody, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("Failed to marshal modified JSON data: %v", err)
@@ -218,17 +210,17 @@ func TestWorkflowInProgressGauge(t *testing.T) {
 
 	updateWorkflowMetrics(context.Background(), modifiedBody)
 
-	// Test gauge
 	if err := testutil.CollectAndCompare(workflowInProgressGauge, strings.NewReader(`
-        # HELP promgithub_workflow_in_progress Number of workflow runs in progress
-        # TYPE promgithub_workflow_in_progress gauge
-        promgithub_workflow_in_progress{branch="main",repository="user/repo",workflow_name="CI"} 1
-    `)); err != nil {
+		# HELP promgithub_workflow_in_progress Number of workflow runs in progress
+		# TYPE promgithub_workflow_in_progress gauge
+		promgithub_workflow_in_progress{branch="main",repository="user/repo",workflow_name="CI"} 1
+	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
 
 func TestWorkflowCompletedGauge(t *testing.T) {
+	withInMemoryStateStore(t)
 	workflowCompletedGauge.Reset()
 	reg.MustRegister(workflowCompletedGauge)
 	body, err := os.ReadFile("../test_data/workflow_run.json")
@@ -237,7 +229,6 @@ func TestWorkflowCompletedGauge(t *testing.T) {
 	}
 	updateWorkflowMetrics(context.Background(), body)
 
-	// Test gauge
 	if err := testutil.CollectAndCompare(workflowCompletedGauge, strings.NewReader(`
 		# HELP promgithub_workflow_completed Number of workflow runs completed
 		# TYPE promgithub_workflow_completed gauge
@@ -248,6 +239,7 @@ func TestWorkflowCompletedGauge(t *testing.T) {
 }
 
 func TestJobQueuedGauge(t *testing.T) {
+	withInMemoryStateStore(t)
 	jobQueuedGauge.Reset()
 	reg.MustRegister(jobQueuedGauge)
 	body, err := os.ReadFile("../test_data/workflow_job.json")
@@ -256,16 +248,13 @@ func TestJobQueuedGauge(t *testing.T) {
 	}
 
 	var payload GithubJob
-
-	// Unmarshal the JSON data into the struct
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatalf("Failed to unmarshal JSON data: %v", err)
 	}
-
-	// Modify the status field
 	payload.Job.Status = statusQueued
+	payload.Job.Conclusion = ""
+	payload.Job.CompletedAt = ""
 
-	// Marshal the modified struct back to JSON
 	modifiedBody, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("Failed to marshal modified JSON data: %v", err)
@@ -273,7 +262,6 @@ func TestJobQueuedGauge(t *testing.T) {
 
 	updateJobMetrics(context.Background(), modifiedBody)
 
-	// Test gauge
 	if err := testutil.CollectAndCompare(jobQueuedGauge, strings.NewReader(`
 		# HELP promgithub_job_queued Number of jobs queued
 		# TYPE promgithub_job_queued gauge
@@ -284,6 +272,7 @@ func TestJobQueuedGauge(t *testing.T) {
 }
 
 func TestJobInProgressGauge(t *testing.T) {
+	withInMemoryStateStore(t)
 	jobInProgressGauge.Reset()
 	reg.MustRegister(jobInProgressGauge)
 	body, err := os.ReadFile("../test_data/workflow_job.json")
@@ -292,16 +281,13 @@ func TestJobInProgressGauge(t *testing.T) {
 	}
 
 	var payload GithubJob
-
-	// Unmarshal the JSON data into the struct
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatalf("Failed to unmarshal JSON data: %v", err)
 	}
-
-	// Modify the status field
 	payload.Job.Status = statusInProgress
+	payload.Job.Conclusion = ""
+	payload.Job.CompletedAt = ""
 
-	// Marshal the modified struct back to JSON
 	modifiedBody, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("Failed to marshal modified JSON data: %v", err)
@@ -309,7 +295,6 @@ func TestJobInProgressGauge(t *testing.T) {
 
 	updateJobMetrics(context.Background(), modifiedBody)
 
-	// Test gauge
 	if err := testutil.CollectAndCompare(jobInProgressGauge, strings.NewReader(`
 		# HELP promgithub_job_in_progress Number of jobs in progress
 		# TYPE promgithub_job_in_progress gauge
@@ -320,8 +305,75 @@ func TestJobInProgressGauge(t *testing.T) {
 }
 
 func TestJobCompletedGauge(t *testing.T) {
+	withInMemoryStateStore(t)
 	jobCompletedGauge.Reset()
 	reg.MustRegister(jobCompletedGauge)
+	body, err := os.ReadFile("../test_data/workflow_job.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+	updateJobMetrics(context.Background(), body)
+
+	if err := testutil.CollectAndCompare(jobCompletedGauge, strings.NewReader(`
+		# HELP promgithub_job_completed Number of jobs completed
+		# TYPE promgithub_job_completed gauge
+		promgithub_job_completed{branch="main",job_conclusion="success",repository="user/repo",workflow_name="CI"} 1
+	`)); err != nil {
+		t.Errorf("unexpected metrics: %v", err)
+	}
+}
+
+func TestWorkflowGaugeTransitionIsIdempotent(t *testing.T) {
+	withInMemoryStateStore(t)
+	workflowQueuedGauge.Reset()
+	workflowInProgressGauge.Reset()
+	workflowCompletedGauge.Reset()
+
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	var payload GithubWorkflow
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("Failed to unmarshal JSON data: %v", err)
+	}
+
+	payload.Workflow.Status = statusQueued
+	payload.Workflow.Conclusion = ""
+	payload.Workflow.UpdatedAt = payload.Workflow.CreatedAt
+	queuedBody, _ := json.Marshal(payload)
+	updateWorkflowMetrics(context.Background(), queuedBody)
+	updateWorkflowMetrics(context.Background(), queuedBody)
+
+	payload.Workflow.Status = statusInProgress
+	payload.Workflow.UpdatedAt = "2024-11-21T11:30:00Z"
+	inProgressBody, _ := json.Marshal(payload)
+	updateWorkflowMetrics(context.Background(), inProgressBody)
+
+	payload.Workflow.Status = statusCompleted
+	payload.Workflow.Conclusion = "success"
+	payload.Workflow.UpdatedAt = "2024-11-21T12:00:00Z"
+	completedBody, _ := json.Marshal(payload)
+	updateWorkflowMetrics(context.Background(), completedBody)
+	updateWorkflowMetrics(context.Background(), inProgressBody)
+
+	if got := testutil.ToFloat64(workflowQueuedGauge.WithLabelValues("user/repo", "main", "CI")); got != 0 {
+		t.Fatalf("expected queued gauge to be 0, got %v", got)
+	}
+	if got := testutil.ToFloat64(workflowInProgressGauge.WithLabelValues("user/repo", "main", "CI")); got != 0 {
+		t.Fatalf("expected in progress gauge to be 0, got %v", got)
+	}
+	if got := testutil.ToFloat64(workflowCompletedGauge.WithLabelValues("user/repo", "main", "success", "CI")); got != 1 {
+		t.Fatalf("expected completed gauge to be 1, got %v", got)
+	}
+}
+
+func TestJobGaugeTransitionIsIdempotent(t *testing.T) {
+	withInMemoryStateStore(t)
+	jobQueuedGauge.Reset()
+	jobInProgressGauge.Reset()
+	jobCompletedGauge.Reset()
 
 	body, err := os.ReadFile("../test_data/workflow_job.json")
 	if err != nil {
@@ -329,29 +381,37 @@ func TestJobCompletedGauge(t *testing.T) {
 	}
 
 	var payload GithubJob
-
-	// Unmarshal the JSON data into the struct
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatalf("Failed to unmarshal JSON data: %v", err)
 	}
 
-	// Modify the status field
+	payload.Job.Status = statusQueued
+	payload.Job.Conclusion = ""
+	payload.Job.StartedAt = ""
+	payload.Job.CompletedAt = ""
+	queuedBody, _ := json.Marshal(payload)
+	updateJobMetrics(context.Background(), queuedBody)
+	updateJobMetrics(context.Background(), queuedBody)
+
+	payload.Job.Status = statusInProgress
+	payload.Job.StartedAt = "2024-11-21T11:00:00Z"
+	inProgressBody, _ := json.Marshal(payload)
+	updateJobMetrics(context.Background(), inProgressBody)
+
 	payload.Job.Status = statusCompleted
+	payload.Job.Conclusion = "success"
+	payload.Job.CompletedAt = "2024-11-21T12:00:00Z"
+	completedBody, _ := json.Marshal(payload)
+	updateJobMetrics(context.Background(), completedBody)
+	updateJobMetrics(context.Background(), inProgressBody)
 
-	// Marshal the modified struct back to JSON
-	modifiedBody, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("Failed to marshal modified JSON data: %v", err)
+	if got := testutil.ToFloat64(jobQueuedGauge.WithLabelValues("user/repo", "main", "CI")); got != 0 {
+		t.Fatalf("expected queued gauge to be 0, got %v", got)
 	}
-
-	updateJobMetrics(context.Background(), modifiedBody)
-
-	// Test gauge
-	if err := testutil.CollectAndCompare(jobCompletedGauge, strings.NewReader(`
-		# HELP promgithub_job_completed Number of jobs completed
-		# TYPE promgithub_job_completed gauge
-		promgithub_job_completed{branch="main",job_conclusion="success",repository="user/repo",workflow_name="CI"} 1
-	`)); err != nil {
-		t.Errorf("unexpected metrics: %v", err)
+	if got := testutil.ToFloat64(jobInProgressGauge.WithLabelValues("user/repo", "main", "CI")); got != 0 {
+		t.Fatalf("expected in progress gauge to be 0, got %v", got)
+	}
+	if got := testutil.ToFloat64(jobCompletedGauge.WithLabelValues("user/repo", "main", "success", "CI")); got != 1 {
+		t.Fatalf("expected completed gauge to be 1, got %v", got)
 	}
 }
