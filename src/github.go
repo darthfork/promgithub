@@ -112,7 +112,10 @@ const (
 	statusCompleted  = "completed"
 )
 
-var stateStore StateStore
+var (
+	stateStore     StateStore
+	eventProcessor *asyncEventProcessor
+)
 
 func validateHMAC(body []byte, signature string, secret []byte) bool {
 	h := hmac.New(sha256.New, secret)
@@ -153,6 +156,16 @@ func githubEventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	eventType := r.Header.Get("X-GitHub-Event")
+	if eventProcessor != nil {
+		if err := eventProcessor.Enqueue(ctx, eventType, body); err != nil {
+			http.Error(w, "Webhook queue is full", http.StatusServiceUnavailable)
+			logger.Warn("Dropping webhook event because queue is full", zap.String("eventType", eventType), zap.Error(err))
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+
 	switch eventType {
 	case "workflow_run":
 		updateWorkflowMetrics(ctx, body)

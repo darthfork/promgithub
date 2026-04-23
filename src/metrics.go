@@ -105,4 +105,58 @@ var (
 		},
 		[]string{"repository", "base_branch", "pull_request_status"},
 	)
+
+	asyncQueueDepthGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "promgithub_event_queue_depth",
+			Help: "Current number of queued webhook events awaiting processing",
+		},
+	)
+
+	asyncQueueCapacityGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "promgithub_event_queue_capacity",
+			Help: "Configured capacity of the webhook event queue",
+		},
+	)
+
+	asyncWorkerCountGauge = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "promgithub_event_worker_count",
+			Help: "Configured number of async webhook event workers",
+		},
+	)
+
+	asyncProcessedEventsCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "promgithub_event_processed_total",
+			Help: "Total number of webhook events processed asynchronously",
+		},
+		[]string{"event_type"},
+	)
+
+	asyncEventsDroppedCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "promgithub_event_dropped_total",
+			Help: "Total number of webhook events dropped before processing",
+		},
+		[]string{"event_type", "reason"},
+	)
+
+	asyncProcessingFailuresCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "promgithub_event_processing_failures_total",
+			Help: "Total number of async webhook processing failures",
+		},
+		[]string{"event_type"},
+	)
+
+	asyncProcessingDurationHistogram = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "promgithub_event_processing_duration_seconds",
+			Help:    "Duration of async webhook event processing",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"event_type"},
+	)
 )

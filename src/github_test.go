@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,8 +11,10 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func computeHMAC(message, secret []byte) string {
@@ -103,7 +106,11 @@ func TestUnknownEvent(t *testing.T) {
 
 func TestDuplicateDeliveryIsIgnored(t *testing.T) {
 	stateStore = newInMemoryStateStore()
-	defer func() { stateStore = nil }()
+	eventProcessor = nil
+	defer func() {
+		stateStore = nil
+		eventProcessor = nil
+	}()
 
 	body, err := os.ReadFile("../test_data/workflow_run.json")
 	if err != nil {
@@ -115,4 +122,56 @@ func TestDuplicateDeliveryIsIgnored(t *testing.T) {
 
 	recorder = sendTestRequest(body, "workflow_run")
 	assert.Equal(t, http.StatusOK, recorder.Code)
+}
+
+func TestWebhookIsAcceptedWhenAsyncProcessorEnabled(t *testing.T) {
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	processed := make(chan struct{}, 1)
+	eventProcessor = newAsyncEventProcessor(asyncProcessorConfig{WorkerCount: 1, QueueSize: 1}, zap.NewNop())
+	eventProcessor.processFn["workflow_run"] = func(_ context.Context, _ []byte) {
+		processed <- struct{}{}
+	}
+	eventProcessor.Start()
+	defer func() {
+		eventProcessor.Stop()
+		eventProcessor = nil
+	}()
+
+	recorder := sendTestRequest(body, "workflow_run")
+	assert.Equal(t, http.StatusAccepted, recorder.Code)
+
+	select {
+	case <-processed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for async processing")
+	}
+}
+
+func TestWebhookReturnsUnavailableWhenAsyncQueueIsFull(t *testing.T) {
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	blocker := make(chan struct{})
+	eventProcessor = newAsyncEventProcessor(asyncProcessorConfig{WorkerCount: 1, QueueSize: 1}, zap.NewNop())
+	eventProcessor.processFn["workflow_run"] = func(_ context.Context, _ []byte) {
+		<-blocker
+	}
+	defer func() {
+		close(blocker)
+		eventProcessor.Stop()
+		eventProcessor = nil
+	}()
+
+	if err := eventProcessor.Enqueue(context.Background(), "workflow_run", []byte(`{"id":1}`)); err != nil {
+		t.Fatalf("unexpected enqueue error: %v", err)
+	}
+
+	recorder := sendTestRequest(body, "workflow_run")
+	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 }
