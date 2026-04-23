@@ -12,7 +12,7 @@ var (
 			Name: "promgithub_workflow_status",
 			Help: "Total number of workflow runs with status",
 		},
-		[]string{"repository", "branch", "workflow_name", "workflow_status", "conclusion"},
+		[]string{"repository", "workflow_name", "workflow_status", "conclusion"},
 	)
 
 	workflowDurationHistogram = promauto.NewHistogramVec(
@@ -21,7 +21,7 @@ var (
 			Help:    "Duration of workflow runs",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"repository", "branch", "workflow_name", "workflow_status", "conclusion"},
+		[]string{"repository", "workflow_name", "workflow_status", "conclusion"},
 	)
 
 	workflowQueuedGauge = promauto.NewGaugeVec(
@@ -29,7 +29,7 @@ var (
 			Name: "promgithub_workflow_queued",
 			Help: "Number of workflow runs queued",
 		},
-		[]string{"repository", "branch", "workflow_name"},
+		[]string{"repository", "workflow_name"},
 	)
 
 	workflowInProgressGauge = promauto.NewGaugeVec(
@@ -37,7 +37,7 @@ var (
 			Name: "promgithub_workflow_in_progress",
 			Help: "Number of workflow runs in progress",
 		},
-		[]string{"repository", "branch", "workflow_name"},
+		[]string{"repository", "workflow_name"},
 	)
 
 	workflowCompletedGauge = promauto.NewGaugeVec(
@@ -45,7 +45,7 @@ var (
 			Name: "promgithub_workflow_completed",
 			Help: "Number of workflow runs completed",
 		},
-		[]string{"repository", "branch", "workflow_conclusion", "workflow_name"},
+		[]string{"repository", "workflow_conclusion", "workflow_name"},
 	)
 
 	// Job metrics.
@@ -54,7 +54,7 @@ var (
 			Name: "promgithub_job_status",
 			Help: "Total number of jobs with status",
 		},
-		[]string{"runner", "repository", "branch", "workflow_name", "job_name", "job_status", "job_conclusion"},
+		[]string{"repository", "workflow_name", "job_status", "job_conclusion"},
 	)
 
 	jobDurationHistogram = promauto.NewHistogramVec(
@@ -63,7 +63,7 @@ var (
 			Help:    "Duration of jobs runs in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"runner", "repository", "branch", "workflow_name", "job_name", "job_status", "job_conclusion"},
+		[]string{"repository", "workflow_name", "job_status", "job_conclusion"},
 	)
 
 	jobQueuedGauge = promauto.NewGaugeVec(
@@ -71,7 +71,7 @@ var (
 			Name: "promgithub_job_queued",
 			Help: "Number of jobs queued",
 		},
-		[]string{"runner", "repository", "branch", "workflow_name", "job_name"},
+		[]string{"repository", "workflow_name"},
 	)
 
 	jobInProgressGauge = promauto.NewGaugeVec(
@@ -79,7 +79,7 @@ var (
 			Name: "promgithub_job_in_progress",
 			Help: "Number of jobs in progress",
 		},
-		[]string{"runner", "repository", "branch", "workflow_name", "job_name"},
+		[]string{"repository", "workflow_name"},
 	)
 
 	jobCompletedGauge = promauto.NewGaugeVec(
@@ -87,7 +87,7 @@ var (
 			Name: "promgithub_job_completed",
 			Help: "Number of jobs completed",
 		},
-		[]string{"runner", "repository", "branch", "job_conclusion", "workflow_name", "job_name"},
+		[]string{"repository", "job_conclusion", "workflow_name"},
 	)
 
 	commitPushedCounter = promauto.NewCounterVec(
@@ -95,7 +95,7 @@ var (
 			Name: "promgithub_commit_pushed",
 			Help: "Total number of commits pushed",
 		},
-		[]string{"repository", "branch", "commit_author", "commit_author_email"},
+		[]string{"repository"},
 	)
 
 	pullRequestCounter = promauto.NewCounterVec(
@@ -103,6 +103,6 @@ var (
 			Name: "promgithub_pull_request",
 			Help: "Total number of pull requests",
 		},
-		[]string{"repository", "base_branch", "pull_request_author", "pull_request_status"},
+		[]string{"repository", "base_branch", "pull_request_status"},
 	)
 )

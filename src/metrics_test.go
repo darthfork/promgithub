@@ -28,7 +28,7 @@ func TestWorkflowStatusCounter(t *testing.T) {
 	if err := testutil.CollectAndCompare(workflowStatusCounter, strings.NewReader(`
 		# HELP promgithub_workflow_status Total number of workflow runs with status
 		# TYPE promgithub_workflow_status counter
-		promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1
+		promgithub_workflow_status{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestJobStatusCounter(t *testing.T) {
 	if err := testutil.CollectAndCompare(jobStatusCounter, strings.NewReader(`
         # HELP promgithub_job_status Total number of jobs with status
         # TYPE promgithub_job_status counter
-        promgithub_job_status{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI"} 1
+        promgithub_job_status{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI"} 1
     `)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestCommitsPushedCounter(t *testing.T) {
 	if err := testutil.CollectAndCompare(commitPushedCounter, strings.NewReader(`
 		# HELP promgithub_commit_pushed Total number of commits pushed
 		# TYPE promgithub_commit_pushed counter
-		promgithub_commit_pushed{branch="refs/heads/main",commit_author="Author1",commit_author_email="author1@example.com",repository="user/repo"} 1
+		promgithub_commit_pushed{repository="user/repo"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestPullRequestsCounter(t *testing.T) {
 	if err := testutil.CollectAndCompare(pullRequestCounter, strings.NewReader(`
 		# HELP promgithub_pull_request Total number of pull requests
 		# TYPE promgithub_pull_request counter
-		promgithub_pull_request{base_branch="main",pull_request_author="user1",pull_request_status="opened",repository="user/repo"} 1
+		promgithub_pull_request{base_branch="main",pull_request_status="opened",repository="user/repo"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -104,20 +104,20 @@ func TestWorkflowDurationHistogram(t *testing.T) {
 	if err := testutil.CollectAndCompare(workflowDurationHistogram, strings.NewReader(`
 		# HELP promgithub_workflow_duration Duration of workflow runs
 		# TYPE promgithub_workflow_duration histogram
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.005"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.01"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.025"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.05"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.1"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.25"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.5"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="1"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="2.5"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="5"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="10"} 0
-		promgithub_workflow_duration_bucket{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="+Inf"} 1
-		promgithub_workflow_duration_sum{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 3600
-		promgithub_workflow_duration_count{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.005"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.01"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.025"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.05"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.1"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.25"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="0.5"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="1"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="2.5"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="5"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="10"} 0
+		promgithub_workflow_duration_bucket{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed",le="+Inf"} 1
+		promgithub_workflow_duration_sum{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 3600
+		promgithub_workflow_duration_count{conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -136,20 +136,20 @@ func TestJobDurationHistogram(t *testing.T) {
 	if err := testutil.CollectAndCompare(jobDurationHistogram, strings.NewReader(`
         # HELP promgithub_job_duration Duration of jobs runs in seconds
         # TYPE promgithub_job_duration histogram
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.005"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.01"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.025"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.05"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.1"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.25"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="0.5"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="1"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="2.5"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="5"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="10"} 0
-        promgithub_job_duration_bucket{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI",le="+Inf"} 1
-        promgithub_job_duration_sum{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI"} 3600
-        promgithub_job_duration_count{branch="main",job_conclusion="success",job_name="Job1",job_status="completed",repository="user/repo",runner="runner1",workflow_name="CI"} 1
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="0.005"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="0.01"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="0.025"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="0.05"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="0.1"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="0.25"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="0.5"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="1"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="2.5"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="5"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="10"} 0
+        promgithub_job_duration_bucket{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI",le="+Inf"} 1
+        promgithub_job_duration_sum{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI"} 3600
+        promgithub_job_duration_count{job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI"} 1
     `)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestWorkflowQueuedGauge(t *testing.T) {
 	if err := testutil.CollectAndCompare(workflowQueuedGauge, strings.NewReader(`
         # HELP promgithub_workflow_queued Number of workflow runs queued
         # TYPE promgithub_workflow_queued gauge
-        promgithub_workflow_queued{branch="main",repository="user/repo",workflow_name="CI"} 1
+        promgithub_workflow_queued{repository="user/repo",workflow_name="CI"} 1
     `)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestWorkflowInProgressGauge(t *testing.T) {
 	if err := testutil.CollectAndCompare(workflowInProgressGauge, strings.NewReader(`
         # HELP promgithub_workflow_in_progress Number of workflow runs in progress
         # TYPE promgithub_workflow_in_progress gauge
-        promgithub_workflow_in_progress{branch="main",repository="user/repo",workflow_name="CI"} 1
+        promgithub_workflow_in_progress{repository="user/repo",workflow_name="CI"} 1
     `)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestWorkflowCompletedGauge(t *testing.T) {
 	if err := testutil.CollectAndCompare(workflowCompletedGauge, strings.NewReader(`
 		# HELP promgithub_workflow_completed Number of workflow runs completed
 		# TYPE promgithub_workflow_completed gauge
-		promgithub_workflow_completed{branch="main",repository="user/repo",workflow_conclusion="success",workflow_name="CI"} 1
+		promgithub_workflow_completed{repository="user/repo",workflow_conclusion="success",workflow_name="CI"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -276,7 +276,7 @@ func TestJobQueuedGauge(t *testing.T) {
 	if err := testutil.CollectAndCompare(jobQueuedGauge, strings.NewReader(`
 		# HELP promgithub_job_queued Number of jobs queued
 		# TYPE promgithub_job_queued gauge
-		promgithub_job_queued{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="CI"} 1
+		promgithub_job_queued{repository="user/repo",workflow_name="CI"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -312,7 +312,7 @@ func TestJobInProgressGauge(t *testing.T) {
 	if err := testutil.CollectAndCompare(jobInProgressGauge, strings.NewReader(`
 		# HELP promgithub_job_in_progress Number of jobs in progress
 		# TYPE promgithub_job_in_progress gauge
-		promgithub_job_in_progress{branch="main",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="CI"} 1
+		promgithub_job_in_progress{repository="user/repo",workflow_name="CI"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
@@ -349,7 +349,7 @@ func TestJobCompletedGauge(t *testing.T) {
 	if err := testutil.CollectAndCompare(jobCompletedGauge, strings.NewReader(`
 		# HELP promgithub_job_completed Number of jobs completed
 		# TYPE promgithub_job_completed gauge
-		promgithub_job_completed{branch="main",job_conclusion="success",job_name="Job1",repository="user/repo",runner="runner1",workflow_name="CI"} 1
+		promgithub_job_completed{job_conclusion="success",repository="user/repo",workflow_name="CI"} 1
 	`)); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}

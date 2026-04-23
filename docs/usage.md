@@ -123,7 +123,25 @@ PROMGITHUB_WEBHOOK_SECRET="<your webhook secret>" PROMGITHUB_SERVICE_PORT="<serv
 
 ## Prometheus scraping configuration
 
-Configure prometheus to scrape `promgithub`'s `/metrics` endpoint to extract metrics
+Configure prometheus to scrape `promgithub`'s `/metrics` endpoint to extract metrics.
+
+## Metric label defaults and upgrade notes
+
+`promgithub` now ships with lower-cardinality default labels to make Prometheus usage safer in larger repositories and organizations.
+
+The following labels are no longer exported by default:
+- workflow/job `branch`
+- job `runner`
+- job `job_name`
+- push `commit_author`
+- push `commit_author_email`
+- pull request `pull_request_author`
+
+This change reduces unbounded series growth from ephemeral branches, runners, and author-identifying fields.
+
+If you are upgrading an existing deployment, update any dashboards, alerts, or recording rules that reference the removed labels before rolling out the new version.
+
+Configure prometheus to scrape `promgithub`'s `/metrics` endpoint to extract metrics.
 
 ### Prometheus configuration
 
