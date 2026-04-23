@@ -1,34 +1,63 @@
 # Using `promgithub` service
 
-## Deploying the service
+## Overview
 
-The service can be deployed in your choice of infrastructure. To allow webhooks to be pushed to `promgithub` make sure your service deployment is accessible from your Github instance.
+`promgithub` receives GitHub webhook events and exposes Prometheus metrics over HTTP.
 
-### Service Parameters
+It can be deployed:
+- as a single instance with only the webhook secret configured
+- as a multi-instance deployment with Redis configured for shared deduplication and state
 
-The service expects the following parameters to be set:
+## Configuration
 
-- **Environment Variables**:
-  - `PROMGITHUB_WEBHOOK_SECRET`: The secret used to validate incoming GitHub webhook requests.
-  - `PROMGITHUB_SERVICE_PORT` (optional): Service API port (default is `8080`).
-  - `PROMGITHUB_REDIS_ADDR` (optional): Redis address in `host:port` form. Enables shared-state multi-instance mode.
-  - `PROMGITHUB_REDIS_PASSWORD` (optional): Redis password.
-  - `PROMGITHUB_REDIS_DB` (optional): Redis database number, default `0`.
-  - `PROMGITHUB_REDIS_KEY_PREFIX` (optional): Prefix for Redis keys, default `promgithub`.
-  - `PROMGITHUB_REDIS_DELIVERY_TTL` (optional): TTL for webhook delivery dedupe keys, default `24h`.
+### Environment variables
 
-If Redis is not configured, `promgithub` runs without shared state and is best suited to single-instance deployments.
+The service supports the following environment variables:
 
-## Redis-backed multi-instance mode
+- `PROMGITHUB_WEBHOOK_SECRET`: Secret used to validate incoming GitHub webhook requests.
+- `PROMGITHUB_SERVICE_PORT` (optional): HTTP port for the service, default `8080`.
+- `PROMGITHUB_REDIS_ADDR` (optional): Redis address in `host:port` form.
+- `PROMGITHUB_REDIS_PASSWORD` (optional): Redis password.
+- `PROMGITHUB_REDIS_DB` (optional): Redis database number, default `0`.
+- `PROMGITHUB_REDIS_KEY_PREFIX` (optional): Prefix used for Redis keys, default `promgithub`.
+- `PROMGITHUB_REDIS_DELIVERY_TTL` (optional): TTL for webhook delivery dedupe keys, default `24h`.
 
-To support horizontal scaling, configure all `promgithub` replicas to use the same Redis instance.
+If Redis is configured, the service stores delivery and run state in Redis.
 
-Redis is used for:
-- deduplicating webhook deliveries with `X-GitHub-Delivery`
-- persisting workflow run state by GitHub `run_id`
-- persisting workflow job state by GitHub job `id`
+## Running the service
 
-### Docker CLI with Redis
+### Run the binary
+
+```bash
+PROMGITHUB_WEBHOOK_SECRET="<your webhook secret>" \
+PROMGITHUB_SERVICE_PORT="8080" \
+/path/to/binary/promgithub
+```
+
+### Run the binary with Redis
+
+```bash
+PROMGITHUB_WEBHOOK_SECRET="<your webhook secret>" \
+PROMGITHUB_REDIS_ADDR="<redis-host:6379>" \
+PROMGITHUB_REDIS_PASSWORD="<redis password>" \
+PROMGITHUB_REDIS_DB="0" \
+PROMGITHUB_REDIS_KEY_PREFIX="promgithub" \
+PROMGITHUB_REDIS_DELIVERY_TTL="24h" \
+PROMGITHUB_SERVICE_PORT="8080" \
+/path/to/binary/promgithub
+```
+
+### Docker
+
+```bash
+docker run \
+  -e PROMGITHUB_WEBHOOK_SECRET=<your webhook secret> \
+  -e PROMGITHUB_SERVICE_PORT=8080 \
+  -p 8080:8080 \
+  ghcr.io/darthfork/promgithub:<version>
+```
+
+### Docker with Redis
 
 ```bash
 docker run \
@@ -58,6 +87,10 @@ services:
     environment:
       PROMGITHUB_WEBHOOK_SECRET: <your webhook secret>
       PROMGITHUB_REDIS_ADDR: redis:6379
+      PROMGITHUB_REDIS_PASSWORD: <redis password>
+      PROMGITHUB_REDIS_DB: 0
+      PROMGITHUB_REDIS_KEY_PREFIX: promgithub
+      PROMGITHUB_REDIS_DELIVERY_TTL: 24h
       PROMGITHUB_SERVICE_PORT: 8080
     ports:
       - "8080:8080"
@@ -65,13 +98,11 @@ services:
       - redis
 ```
 
-## Deploying in kubernetes
+## Deploying with Kubernetes
 
-To deploy the service in a kubernetes cluster you can use the provided helm chart from the [promgithub chart repository](https://github.com/darthfork/promgithub/pkgs/container/promgithub-charts%2Fpromgithub)
+`promgithub` includes a Helm chart.
 
-### Chart.yaml
-
-Add the helm repository as a dependency to your chart deployment:
+### Add the chart dependency
 
 ```yaml
 apiVersion: v2
@@ -86,11 +117,7 @@ dependencies:
     repository: "oci://ghcr.io/darthfork/promgithub-charts"
 ```
 
-### Values
-
-Create a values file with the webhook secret and your Redis configuration.
-
-#### Use an external Redis instance
+### Values for an external Redis instance
 
 ```yaml
 promgithub:
@@ -104,7 +131,7 @@ promgithub:
     deliveryTTL: 24h
 ```
 
-#### One-stop deployment with bundled Redis
+### Values for a bundled Redis deployment
 
 ```yaml
 promgithub:
@@ -121,50 +148,31 @@ promgithub:
     deliveryTTL: 24h
 ```
 
-When `redis.enabled=true`, the chart configures `promgithub` to connect to the bundled Redis release service automatically.
-
-Note: the chart now declares a Redis Helm dependency for this flow. Depending on your Helm environment, you may need to run `helm dependency update helm/promgithub` with registry access before packaging the chart.
+When `redis.enabled=true`, the chart deploys Redis as a dependency and configures `promgithub` to connect to it automatically.
 
 ### Ingress
 
-Add an Ingress configuration allowing your github instance to access `promgithub` deployment. More details can be found [here](https://kubernetes.io/docs/concepts/services-networking/ingress/)
+Expose the `/webhook` endpoint to GitHub using your preferred Kubernetes ingress setup.
 
-### Metrics Scraping
-
-Create prometheus configuration resource with the chart for scraping metrics from the `/metrics` endpoint from promgithub service. For more details see the [Prometheus scraping configuration](#prometheus-scraping-configuration) below.
-
-## Deploying service binary
-
-The service binaries are also available under [github releases](https://github.com/darthfork/promgithub/releases) which can be deployed as the user wishes.
-
-```bash
-PROMGITHUB_WEBHOOK_SECRET="<your webhook secret>" \
-PROMGITHUB_REDIS_ADDR="<redis-host:6379>" \
-PROMGITHUB_SERVICE_PORT="8080" \
-/path/to/binary/promgithub
-```
-
-## Setting up the Webhook in GitHub (Repository/Organization)
+## Setting up the GitHub webhook
 
 1. Navigate to your GitHub repository or organization settings.
-2. Under **Settings**, find **Webhooks** and click **Add webhook**.
-3. Enter the payload URL pointing to your `promgithub` service, e.g., `http://<your-service-url>/webhook`.
-4. Set the **Content type** to `application/json`.
-5. Add the **Secret**: Use the value of `PROMGITHUB_WEBHOOK_SECRET`.
-6. Select the following events to trigger the webhook:
+2. Under **Settings**, open **Webhooks** and click **Add webhook**.
+3. Set the payload URL to your `promgithub` webhook endpoint, for example `https://<your-service-url>/webhook`.
+4. Set **Content type** to `application/json`.
+5. Set the **Secret** to the value used for `PROMGITHUB_WEBHOOK_SECRET`.
+6. Subscribe to these events:
    - **push**
    - **pull request**
    - **workflow job**
    - **workflow runs**
-7. Click **Add webhook** to save.
+7. Save the webhook.
 
-## Prometheus scraping configuration
+## Scraping metrics
 
-Configure prometheus to scrape `promgithub`'s `/metrics` endpoint to extract metrics.
+`promgithub` exposes Prometheus metrics on `/metrics`.
 
 ### Prometheus configuration
-
-To allow prometheus to scrape `promgithub`'s `/metrics` endpoint, add the following configuration to your prometheus setup:
 
 ```yaml
 scrape_configs:
@@ -178,8 +186,6 @@ scrape_configs:
 ```
 
 ### VictoriaMetrics configuration
-
-If you use victoria-metrics as your metrics provider, add a `vmservicescrape` configuration to your `promgithub` chart deployment
 
 ```yaml
 apiVersion: operator.victoriametrics.com/v1beta1
