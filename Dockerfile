@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23.10 AS builder
+FROM golang:1.25.9 AS builder
 
 # Set non-root user for build
 RUN useradd -u 10001 -m builder
