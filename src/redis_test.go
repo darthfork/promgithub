@@ -29,9 +29,19 @@ func (s *inMemoryStateStore) MarkDeliveryProcessed(_ context.Context, deliveryID
 	return true, nil
 }
 
+func (s *inMemoryStateStore) GetWorkflowRun(_ context.Context, runID int) (RunState, bool, error) {
+	state, ok := s.workflow[runID]
+	return state, ok, nil
+}
+
 func (s *inMemoryStateStore) UpdateWorkflowRun(_ context.Context, runID int, state RunState) error {
 	s.workflow[runID] = state
 	return nil
+}
+
+func (s *inMemoryStateStore) GetWorkflowJob(_ context.Context, jobID int) (RunState, bool, error) {
+	state, ok := s.jobs[jobID]
+	return state, ok, nil
 }
 
 func (s *inMemoryStateStore) UpdateWorkflowJob(_ context.Context, jobID int, state RunState) error {
