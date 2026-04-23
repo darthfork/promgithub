@@ -82,6 +82,16 @@ type GithubPullRequest struct {
 	Repository GithubRepo `json:"repository"`
 }
 
+type runMetricDetails struct {
+	repository string
+	branch     string
+	name       string
+	status     string
+	conclusion string
+	startedAt  string
+	endedAt    string
+}
+
 func validateHMAC(body []byte, signature string, secret []byte) bool {
 	h := hmac.New(sha256.New, secret)
 	h.Write(body)
@@ -121,6 +131,68 @@ func githubEventsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func observeRunMetrics(
+	details runMetricDetails,
+	statusCounter *prometheus.CounterVec,
+	queuedGauge *prometheus.GaugeVec,
+	inProgressGauge *prometheus.GaugeVec,
+	completedGauge *prometheus.GaugeVec,
+	durationHistogram *prometheus.HistogramVec,
+) {
+	statusCounter.WithLabelValues(
+		details.repository,
+		details.branch,
+		details.name,
+		details.status,
+		details.conclusion,
+	).Inc()
+
+	switch strings.ToLower(details.status) {
+	case "queued":
+		queuedGauge.WithLabelValues(
+			details.repository,
+			details.branch,
+			details.name,
+		).Inc()
+	case "in_progress":
+		inProgressGauge.WithLabelValues(
+			details.repository,
+			details.branch,
+			details.name,
+		).Inc()
+		queuedGauge.WithLabelValues(
+			details.repository,
+			details.branch,
+			details.name,
+		).Dec()
+	case "completed":
+		completedGauge.WithLabelValues(
+			details.repository,
+			details.branch,
+			details.conclusion,
+			details.name,
+		).Inc()
+		inProgressGauge.WithLabelValues(
+			details.repository,
+			details.branch,
+			details.name,
+		).Dec()
+
+		startedAt, err1 := time.Parse(time.RFC3339, details.startedAt)
+		endedAt, err2 := time.Parse(time.RFC3339, details.endedAt)
+		if err1 == nil && err2 == nil {
+			duration := endedAt.Sub(startedAt).Seconds()
+			durationHistogram.WithLabelValues(
+				details.repository,
+				details.branch,
+				details.name,
+				details.status,
+				details.conclusion,
+			).Observe(duration)
+		}
+	}
+}
+
 func updateWorkflowMetrics(body []byte) {
 	var payload GithubWorkflow
 
@@ -129,60 +201,22 @@ func updateWorkflowMetrics(body []byte) {
 		return
 	}
 
-	workflowStatusCounter.With(prometheus.Labels{
-		"repository":      payload.Workflow.Repository.FullName,
-		"branch":          payload.Workflow.Branch,
-		"workflow_name":   payload.Workflow.Name,
-		"workflow_status": payload.Workflow.Status,
-		"conclusion":      payload.Workflow.Conclusion,
-	}).Inc()
-
-	// Handle updating the gauges based on workflow status
-	switch strings.ToLower(payload.Workflow.Status) {
-	case "queued":
-		workflowQueuedGauge.With(prometheus.Labels{
-			"repository":    payload.Workflow.Repository.FullName,
-			"branch":        payload.Workflow.Branch,
-			"workflow_name": payload.Workflow.Name,
-		}).Inc()
-	case "in_progress":
-		workflowInProgressGauge.With(prometheus.Labels{
-			"repository":    payload.Workflow.Repository.FullName,
-			"branch":        payload.Workflow.Branch,
-			"workflow_name": payload.Workflow.Name,
-		}).Inc()
-		workflowQueuedGauge.With(prometheus.Labels{
-			"repository":    payload.Workflow.Repository.FullName,
-			"branch":        payload.Workflow.Branch,
-			"workflow_name": payload.Workflow.Name,
-		}).Dec()
-	case "completed":
-		workflowCompletedGauge.With(prometheus.Labels{
-			"repository":          payload.Workflow.Repository.FullName,
-			"branch":              payload.Workflow.Branch,
-			"workflow_conclusion": payload.Workflow.Conclusion,
-			"workflow_name":       payload.Workflow.Name,
-		}).Inc()
-		workflowInProgressGauge.With(prometheus.Labels{
-			"repository":    payload.Workflow.Repository.FullName,
-			"branch":        payload.Workflow.Branch,
-			"workflow_name": payload.Workflow.Name,
-		}).Dec()
-
-		// Update duration histogram when the workflow is completed
-		createdAt, err1 := time.Parse(time.RFC3339, payload.Workflow.CreatedAt)
-		updatedAt, err2 := time.Parse(time.RFC3339, payload.Workflow.UpdatedAt)
-		if err1 == nil && err2 == nil {
-			duration := updatedAt.Sub(createdAt).Seconds()
-			workflowDurationHistogram.With(prometheus.Labels{
-				"repository":      payload.Workflow.Repository.FullName,
-				"branch":          payload.Workflow.Branch,
-				"workflow_name":   payload.Workflow.Name,
-				"workflow_status": payload.Workflow.Status,
-				"conclusion":      payload.Workflow.Conclusion,
-			}).Observe(duration)
-		}
-	}
+	observeRunMetrics(
+		runMetricDetails{
+			repository: payload.Workflow.Repository.FullName,
+			branch:     payload.Workflow.Branch,
+			name:       payload.Workflow.Name,
+			status:     payload.Workflow.Status,
+			conclusion: payload.Workflow.Conclusion,
+			startedAt:  payload.Workflow.CreatedAt,
+			endedAt:    payload.Workflow.UpdatedAt,
+		},
+		workflowStatusCounter,
+		workflowQueuedGauge,
+		workflowInProgressGauge,
+		workflowCompletedGauge,
+		workflowDurationHistogram,
+	)
 }
 
 func updateJobMetrics(body []byte) {
@@ -193,74 +227,22 @@ func updateJobMetrics(body []byte) {
 		return
 	}
 
-	jobStatusCounter.With(prometheus.Labels{
-		"runner":         payload.Job.RunnerName,
-		"repository":     payload.Job.Repository.FullName,
-		"branch":         payload.Job.Branch,
-		"workflow_name":  payload.Job.WorkflowName,
-		"job_name":       payload.Job.Name,
-		"job_status":     payload.Job.Status,
-		"job_conclusion": payload.Job.Conclusion,
-	}).Inc()
-
-	// Handle updating the gauges based on job status
-	switch strings.ToLower(payload.Job.Status) {
-	case "queued":
-		jobQueuedGauge.With(prometheus.Labels{
-			"runner":        payload.Job.RunnerName,
-			"repository":    payload.Job.Repository.FullName,
-			"branch":        payload.Job.Branch,
-			"workflow_name": payload.Job.WorkflowName,
-			"job_name":      payload.Job.Name,
-		}).Inc()
-	case "in_progress":
-		jobInProgressGauge.With(prometheus.Labels{
-			"runner":        payload.Job.RunnerName,
-			"repository":    payload.Job.Repository.FullName,
-			"branch":        payload.Job.Branch,
-			"workflow_name": payload.Job.WorkflowName,
-			"job_name":      payload.Job.Name,
-		}).Inc()
-		jobQueuedGauge.With(prometheus.Labels{
-			"runner":        payload.Job.RunnerName,
-			"repository":    payload.Job.Repository.FullName,
-			"branch":        payload.Job.Branch,
-			"workflow_name": payload.Job.WorkflowName,
-			"job_name":      payload.Job.Name,
-		}).Dec()
-	case "completed":
-		jobCompletedGauge.With(prometheus.Labels{
-			"runner":         payload.Job.RunnerName,
-			"repository":     payload.Job.Repository.FullName,
-			"branch":         payload.Job.Branch,
-			"job_conclusion": payload.Job.Conclusion,
-			"workflow_name":  payload.Job.WorkflowName,
-			"job_name":       payload.Job.Name,
-		}).Inc()
-		jobInProgressGauge.With(prometheus.Labels{
-			"runner":        payload.Job.RunnerName,
-			"repository":    payload.Job.Repository.FullName,
-			"branch":        payload.Job.Branch,
-			"workflow_name": payload.Job.WorkflowName,
-			"job_name":      payload.Job.Name,
-		}).Dec()
-
-		// Update duration histogram when the job is completed
-		startedAt, err1 := time.Parse(time.RFC3339, payload.Job.StartedAt)
-		completedAt, err2 := time.Parse(time.RFC3339, payload.Job.CompletedAt)
-		if err1 == nil && err2 == nil {
-			duration := completedAt.Sub(startedAt).Seconds()
-			jobDurationHistogram.With(prometheus.Labels{
-				"runner":         payload.Job.RunnerName,
-				"repository":     payload.Job.Repository.FullName,
-				"branch":         payload.Job.Branch,
-				"workflow_name":  payload.Job.WorkflowName,
-				"job_name":       payload.Job.Name,
-				"job_status":     payload.Job.Status,
-				"job_conclusion": payload.Job.Conclusion,
-			}).Observe(duration)
-		}
-	}
+	observeRunMetrics(
+		runMetricDetails{
+			repository: payload.Job.Repository.FullName,
+			branch:     payload.Job.Branch,
+			name:       payload.Job.WorkflowName,
+			status:     payload.Job.Status,
+			conclusion: payload.Job.Conclusion,
+			startedAt:  payload.Job.StartedAt,
+			endedAt:    payload.Job.CompletedAt,
+		},
+		jobStatusCounter,
+		jobQueuedGauge,
+		jobInProgressGauge,
+		jobCompletedGauge,
+		jobDurationHistogram,
+	)
 }
 
 func updateCommitMetrics(body []byte) {
@@ -271,13 +253,8 @@ func updateCommitMetrics(body []byte) {
 		return
 	}
 
-	for _, commit := range payload.Commits {
-		commitPushedCounter.With(prometheus.Labels{
-			"repository":          payload.Repository.FullName,
-			"branch":              payload.Ref,
-			"commit_author":       commit.Author.Name,
-			"commit_author_email": commit.Author.Email,
-		}).Inc()
+	for range payload.Commits {
+		commitPushedCounter.WithLabelValues(payload.Repository.FullName).Inc()
 	}
 }
 
@@ -289,10 +266,9 @@ func updatePullRequestMetrics(body []byte) {
 		return
 	}
 
-	pullRequestCounter.With(prometheus.Labels{
-		"repository":          payload.Repository.FullName,
-		"base_branch":         payload.PullRequest.Base.Ref,
-		"pull_request_author": payload.PullRequest.User.Login,
-		"pull_request_status": payload.Action,
-	}).Inc()
+	pullRequestCounter.WithLabelValues(
+		payload.Repository.FullName,
+		payload.PullRequest.Base.Ref,
+		payload.Action,
+	).Inc()
 }

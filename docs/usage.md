@@ -123,7 +123,7 @@ PROMGITHUB_WEBHOOK_SECRET="<your webhook secret>" PROMGITHUB_SERVICE_PORT="<serv
 
 ## Prometheus scraping configuration
 
-Configure prometheus to scrape `promgithub`'s `/metrics` endpoint to extract metrics
+Configure prometheus to scrape `promgithub`'s `/metrics` endpoint to extract metrics.
 
 ### Prometheus configuration
 
