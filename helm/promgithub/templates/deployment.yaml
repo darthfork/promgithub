@@ -39,6 +39,21 @@ spec:
           env:
             - name: ENVIRONMENT
               value: "{{ .Values.environment | default "production" }}"
+            {{- if .Values.redis.enabled }}
+            - name: PROMGITHUB_REDIS_ADDR
+              value: "{{ .Release.Name }}-redis-master:6379"
+            {{- else if .Values.redisConfig.addr }}
+            - name: PROMGITHUB_REDIS_ADDR
+              value: "{{ .Values.redisConfig.addr }}"
+            {{- end }}
+            {{- if or .Values.redis.enabled .Values.redisConfig.addr }}
+            - name: PROMGITHUB_REDIS_DB
+              value: "{{ .Values.redisConfig.db }}"
+            - name: PROMGITHUB_REDIS_KEY_PREFIX
+              value: "{{ .Values.redisConfig.keyPrefix | default "promgithub" }}"
+            - name: PROMGITHUB_REDIS_DELIVERY_TTL
+              value: "{{ .Values.redisConfig.deliveryTTL | default "24h" }}"
+            {{- end }}
           envFrom:
             - secretRef:
                 name: "{{ include "promgithub.fullname" . }}"

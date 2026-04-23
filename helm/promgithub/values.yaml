@@ -8,6 +8,7 @@ revisionHistoryLimit: 10
 
 secrets:
   github_webhook_secret: ""
+  redis_password: ""
 
 environment: production # Set the environment to development to enable debug logging and profiling endpoints
 
@@ -31,6 +32,19 @@ podAnnotations: {}
 
 # This is for setting Kubernetes Labels to a Pod.
 podLabels: {}
+
+redis:
+  enabled: false
+  architecture: standalone
+  auth:
+    enabled: true
+    password: ""
+
+redisConfig:
+  addr: ""
+  db: 0
+  keyPrefix: promgithub
+  deliveryTTL: 24h
 
 # This is for setting up the promgithub service
 service:

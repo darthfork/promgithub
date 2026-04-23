@@ -25,6 +25,7 @@ func sendTestRequest(payload []byte, eventType string) *httptest.ResponseRecorde
 	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewBuffer(payload))
 	req.Header.Set("X-Hub-Signature-256", signature)
 	req.Header.Set("X-GitHub-Event", eventType)
+	req.Header.Set("X-GitHub-Delivery", "delivery-1")
 
 	recorder := httptest.NewRecorder()
 	handler := http.HandlerFunc(githubEventsHandler)
@@ -97,5 +98,21 @@ func TestUnknownEvent(t *testing.T) {
 		t.Fatalf("Failed to read test data file: %v", err)
 	}
 	recorder := sendTestRequest(body, "unknown_event")
+	assert.Equal(t, http.StatusOK, recorder.Code)
+}
+
+func TestDuplicateDeliveryIsIgnored(t *testing.T) {
+	stateStore = newInMemoryStateStore()
+	defer func() { stateStore = nil }()
+
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+
+	recorder := sendTestRequest(body, "workflow_run")
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	recorder = sendTestRequest(body, "workflow_run")
 	assert.Equal(t, http.StatusOK, recorder.Code)
 }

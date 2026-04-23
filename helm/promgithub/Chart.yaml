@@ -10,3 +10,9 @@ version: 0.0.7
 # This is the version number of the application being deployed. This version number co-relates to the version
 # of promgithub deployed with the chart. Update this version to deploy a new version of the application.
 appVersion: "0.0.7"
+
+dependencies:
+  - name: redis
+    version: 0.0.7
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled

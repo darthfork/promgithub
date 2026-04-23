@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -22,7 +23,7 @@ func TestWorkflowStatusCounter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read test data file: %v", err)
 	}
-	updateWorkflowMetrics(body)
+	updateWorkflowMetrics(context.Background(), body)
 
 	// Test counter
 	if err := testutil.CollectAndCompare(workflowStatusCounter, strings.NewReader(`
@@ -41,7 +42,7 @@ func TestJobStatusCounter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read test data file: %v", err)
 	}
-	updateJobMetrics(body)
+	updateJobMetrics(context.Background(), body)
 
 	// Test counter
 	if err := testutil.CollectAndCompare(jobStatusCounter, strings.NewReader(`
@@ -98,7 +99,7 @@ func TestWorkflowDurationHistogram(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read test data file: %v", err)
 	}
-	updateWorkflowMetrics(body)
+	updateWorkflowMetrics(context.Background(), body)
 
 	// Test histogram
 	if err := testutil.CollectAndCompare(workflowDurationHistogram, strings.NewReader(`
@@ -130,7 +131,7 @@ func TestJobDurationHistogram(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read test data file: %v", err)
 	}
-	updateJobMetrics(body)
+	updateJobMetrics(context.Background(), body)
 
 	// Test histogram
 	if err := testutil.CollectAndCompare(jobDurationHistogram, strings.NewReader(`
@@ -179,7 +180,7 @@ func TestWorkflowQueuedGauge(t *testing.T) {
 		t.Fatalf("Failed to marshal modified JSON data: %v", err)
 	}
 
-	updateWorkflowMetrics(modifiedBody)
+	updateWorkflowMetrics(context.Background(), modifiedBody)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(workflowQueuedGauge, strings.NewReader(`
@@ -215,7 +216,7 @@ func TestWorkflowInProgressGauge(t *testing.T) {
 		t.Fatalf("Failed to marshal modified JSON data: %v", err)
 	}
 
-	updateWorkflowMetrics(modifiedBody)
+	updateWorkflowMetrics(context.Background(), modifiedBody)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(workflowInProgressGauge, strings.NewReader(`
@@ -234,7 +235,7 @@ func TestWorkflowCompletedGauge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read test data file: %v", err)
 	}
-	updateWorkflowMetrics(body)
+	updateWorkflowMetrics(context.Background(), body)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(workflowCompletedGauge, strings.NewReader(`
@@ -270,7 +271,7 @@ func TestJobQueuedGauge(t *testing.T) {
 		t.Fatalf("Failed to marshal modified JSON data: %v", err)
 	}
 
-	updateJobMetrics(modifiedBody)
+	updateJobMetrics(context.Background(), modifiedBody)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(jobQueuedGauge, strings.NewReader(`
@@ -306,7 +307,7 @@ func TestJobInProgressGauge(t *testing.T) {
 		t.Fatalf("Failed to marshal modified JSON data: %v", err)
 	}
 
-	updateJobMetrics(modifiedBody)
+	updateJobMetrics(context.Background(), modifiedBody)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(jobInProgressGauge, strings.NewReader(`
@@ -343,7 +344,7 @@ func TestJobCompletedGauge(t *testing.T) {
 		t.Fatalf("Failed to marshal modified JSON data: %v", err)
 	}
 
-	updateJobMetrics(modifiedBody)
+	updateJobMetrics(context.Background(), modifiedBody)
 
 	// Test gauge
 	if err := testutil.CollectAndCompare(jobCompletedGauge, strings.NewReader(`
