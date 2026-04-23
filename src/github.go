@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -81,6 +82,15 @@ type GithubPullRequest struct {
 	Repository GithubRepo `json:"repository"`
 }
 
+type runMetricDetails struct {
+	repository string
+	name       string
+	status     string
+	conclusion string
+	startedAt  string
+	endedAt    string
+}
+
 func validateHMAC(body []byte, signature string, secret []byte) bool {
 	h := hmac.New(sha256.New, secret)
 	h.Write(body)
@@ -120,6 +130,61 @@ func githubEventsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func observeRunMetrics(
+	details runMetricDetails,
+	statusCounter *prometheus.CounterVec,
+	queuedGauge *prometheus.GaugeVec,
+	inProgressGauge *prometheus.GaugeVec,
+	completedGauge *prometheus.GaugeVec,
+	durationHistogram *prometheus.HistogramVec,
+) {
+	statusCounter.WithLabelValues(
+		details.repository,
+		details.name,
+		details.status,
+		details.conclusion,
+	).Inc()
+
+	switch strings.ToLower(details.status) {
+	case "queued":
+		queuedGauge.WithLabelValues(
+			details.repository,
+			details.name,
+		).Inc()
+	case "in_progress":
+		inProgressGauge.WithLabelValues(
+			details.repository,
+			details.name,
+		).Inc()
+		queuedGauge.WithLabelValues(
+			details.repository,
+			details.name,
+		).Dec()
+	case "completed":
+		completedGauge.WithLabelValues(
+			details.repository,
+			details.conclusion,
+			details.name,
+		).Inc()
+		inProgressGauge.WithLabelValues(
+			details.repository,
+			details.name,
+		).Dec()
+
+		startedAt, err1 := time.Parse(time.RFC3339, details.startedAt)
+		endedAt, err2 := time.Parse(time.RFC3339, details.endedAt)
+		if err1 == nil && err2 == nil {
+			duration := endedAt.Sub(startedAt).Seconds()
+			durationHistogram.WithLabelValues(
+				details.repository,
+				details.name,
+				details.status,
+				details.conclusion,
+			).Observe(duration)
+		}
+	}
+}
+
 func updateWorkflowMetrics(body []byte) {
 	var payload GithubWorkflow
 
@@ -128,51 +193,21 @@ func updateWorkflowMetrics(body []byte) {
 		return
 	}
 
-	workflowStatusCounter.WithLabelValues(
-		payload.Workflow.Repository.FullName,
-		payload.Workflow.Name,
-		payload.Workflow.Status,
-		payload.Workflow.Conclusion,
-	).Inc()
-
-	switch strings.ToLower(payload.Workflow.Status) {
-	case "queued":
-		workflowQueuedGauge.WithLabelValues(
-			payload.Workflow.Repository.FullName,
-			payload.Workflow.Name,
-		).Inc()
-	case "in_progress":
-		workflowInProgressGauge.WithLabelValues(
-			payload.Workflow.Repository.FullName,
-			payload.Workflow.Name,
-		).Inc()
-		workflowQueuedGauge.WithLabelValues(
-			payload.Workflow.Repository.FullName,
-			payload.Workflow.Name,
-		).Dec()
-	case "completed":
-		workflowCompletedGauge.WithLabelValues(
-			payload.Workflow.Repository.FullName,
-			payload.Workflow.Conclusion,
-			payload.Workflow.Name,
-		).Inc()
-		workflowInProgressGauge.WithLabelValues(
-			payload.Workflow.Repository.FullName,
-			payload.Workflow.Name,
-		).Dec()
-
-		createdAt, err1 := time.Parse(time.RFC3339, payload.Workflow.CreatedAt)
-		updatedAt, err2 := time.Parse(time.RFC3339, payload.Workflow.UpdatedAt)
-		if err1 == nil && err2 == nil {
-			duration := updatedAt.Sub(createdAt).Seconds()
-			workflowDurationHistogram.WithLabelValues(
-				payload.Workflow.Repository.FullName,
-				payload.Workflow.Name,
-				payload.Workflow.Status,
-				payload.Workflow.Conclusion,
-			).Observe(duration)
-		}
-	}
+	observeRunMetrics(
+		runMetricDetails{
+			repository: payload.Workflow.Repository.FullName,
+			name:       payload.Workflow.Name,
+			status:     payload.Workflow.Status,
+			conclusion: payload.Workflow.Conclusion,
+			startedAt:  payload.Workflow.CreatedAt,
+			endedAt:    payload.Workflow.UpdatedAt,
+		},
+		workflowStatusCounter,
+		workflowQueuedGauge,
+		workflowInProgressGauge,
+		workflowCompletedGauge,
+		workflowDurationHistogram,
+	)
 }
 
 func updateJobMetrics(body []byte) {
@@ -183,51 +218,21 @@ func updateJobMetrics(body []byte) {
 		return
 	}
 
-	jobStatusCounter.WithLabelValues(
-		payload.Job.Repository.FullName,
-		payload.Job.WorkflowName,
-		payload.Job.Status,
-		payload.Job.Conclusion,
-	).Inc()
-
-	switch strings.ToLower(payload.Job.Status) {
-	case "queued":
-		jobQueuedGauge.WithLabelValues(
-			payload.Job.Repository.FullName,
-			payload.Job.WorkflowName,
-		).Inc()
-	case "in_progress":
-		jobInProgressGauge.WithLabelValues(
-			payload.Job.Repository.FullName,
-			payload.Job.WorkflowName,
-		).Inc()
-		jobQueuedGauge.WithLabelValues(
-			payload.Job.Repository.FullName,
-			payload.Job.WorkflowName,
-		).Dec()
-	case "completed":
-		jobCompletedGauge.WithLabelValues(
-			payload.Job.Repository.FullName,
-			payload.Job.Conclusion,
-			payload.Job.WorkflowName,
-		).Inc()
-		jobInProgressGauge.WithLabelValues(
-			payload.Job.Repository.FullName,
-			payload.Job.WorkflowName,
-		).Dec()
-
-		startedAt, err1 := time.Parse(time.RFC3339, payload.Job.StartedAt)
-		completedAt, err2 := time.Parse(time.RFC3339, payload.Job.CompletedAt)
-		if err1 == nil && err2 == nil {
-			duration := completedAt.Sub(startedAt).Seconds()
-			jobDurationHistogram.WithLabelValues(
-				payload.Job.Repository.FullName,
-				payload.Job.WorkflowName,
-				payload.Job.Status,
-				payload.Job.Conclusion,
-			).Observe(duration)
-		}
-	}
+	observeRunMetrics(
+		runMetricDetails{
+			repository: payload.Job.Repository.FullName,
+			name:       payload.Job.WorkflowName,
+			status:     payload.Job.Status,
+			conclusion: payload.Job.Conclusion,
+			startedAt:  payload.Job.StartedAt,
+			endedAt:    payload.Job.CompletedAt,
+		},
+		jobStatusCounter,
+		jobQueuedGauge,
+		jobInProgressGauge,
+		jobCompletedGauge,
+		jobDurationHistogram,
+	)
 }
 
 func updateCommitMetrics(body []byte) {
