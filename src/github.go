@@ -106,6 +106,12 @@ type runStoreMethods struct {
 	update func(context.Context, int, RunState) error
 }
 
+const (
+	statusQueued     = "queued"
+	statusInProgress = "in_progress"
+	statusCompleted  = "completed"
+)
+
 var stateStore StateStore
 
 func validateHMAC(body []byte, signature string, secret []byte) bool {

@@ -10,12 +10,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
-const (
-	statusQueued     = "queued"
-	statusInProgress = "in_progress"
-	statusCompleted  = "completed"
-)
-
 func withInMemoryStateStore(t *testing.T) {
 	oldStore := stateStore
 	stateStore = newInMemoryStateStore()
