@@ -1,57 +1,12 @@
+//go:build !integration
+
 package main
 
 import (
-	"context"
 	"os"
 	"testing"
 	"time"
 )
-
-type inMemoryStateStore struct {
-	deliveries map[string]struct{}
-	workflow   map[int]RunState
-	jobs       map[int]RunState
-}
-
-func newInMemoryStateStore() *inMemoryStateStore {
-	return &inMemoryStateStore{
-		deliveries: map[string]struct{}{},
-		workflow:   map[int]RunState{},
-		jobs:       map[int]RunState{},
-	}
-}
-
-func (s *inMemoryStateStore) MarkDeliveryProcessed(_ context.Context, deliveryID string) (bool, error) {
-	if _, ok := s.deliveries[deliveryID]; ok {
-		return false, nil
-	}
-	s.deliveries[deliveryID] = struct{}{}
-	return true, nil
-}
-
-func (s *inMemoryStateStore) GetWorkflowRun(_ context.Context, runID int) (RunState, bool, error) {
-	state, ok := s.workflow[runID]
-	return state, ok, nil
-}
-
-func (s *inMemoryStateStore) UpdateWorkflowRun(_ context.Context, runID int, state RunState) error {
-	s.workflow[runID] = state
-	return nil
-}
-
-func (s *inMemoryStateStore) GetWorkflowJob(_ context.Context, jobID int) (RunState, bool, error) {
-	state, ok := s.jobs[jobID]
-	return state, ok, nil
-}
-
-func (s *inMemoryStateStore) UpdateWorkflowJob(_ context.Context, jobID int, state RunState) error {
-	s.jobs[jobID] = state
-	return nil
-}
-
-func (s *inMemoryStateStore) Close() error {
-	return nil
-}
 
 func TestLoadRedisConfigFromEnv(t *testing.T) {
 	for _, key := range []string{

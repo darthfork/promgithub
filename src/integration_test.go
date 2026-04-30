@@ -1,3 +1,5 @@
+//go:build integration
+
 package main
 
 import (
@@ -18,7 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestWebhookMetricsIntegration(t *testing.T) {
+func TestIntegrationWebhookMetrics(t *testing.T) {
 	testCases := []struct {
 		name           string
 		eventType      string
@@ -29,28 +31,28 @@ func TestWebhookMetricsIntegration(t *testing.T) {
 		{
 			name:           "workflow run updates workflow metrics",
 			eventType:      "workflow_run",
-			fixture:        "../test_data/workflow_run.json",
+			fixture:        "workflow_run.json",
 			expectedStatus: http.StatusAccepted,
 			expectedMetric: `promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1`,
 		},
 		{
 			name:           "workflow job updates job metrics",
 			eventType:      "workflow_job",
-			fixture:        "../test_data/workflow_job.json",
+			fixture:        "workflow_job.json",
 			expectedStatus: http.StatusAccepted,
 			expectedMetric: `promgithub_job_status{branch="main",job_conclusion="success",job_status="completed",repository="user/repo",workflow_name="CI"} 1`,
 		},
 		{
 			name:           "push updates commit metrics",
 			eventType:      "push",
-			fixture:        "../test_data/push.json",
+			fixture:        "push.json",
 			expectedStatus: http.StatusAccepted,
 			expectedMetric: `promgithub_commit_pushed{repository="user/repo"} 1`,
 		},
 		{
 			name:           "pull request updates pull request metrics",
 			eventType:      "pull_request",
-			fixture:        "../test_data/pull_request.json",
+			fixture:        "pull_request.json",
 			expectedStatus: http.StatusAccepted,
 			expectedMetric: `promgithub_pull_request{base_branch="main",pull_request_status="opened",repository="user/repo"} 1`,
 		},
@@ -77,11 +79,11 @@ func TestWebhookMetricsIntegration(t *testing.T) {
 	}
 }
 
-func TestWebhookInvalidSignatureIntegration(t *testing.T) {
+func TestIntegrationWebhookInvalidSignature(t *testing.T) {
 	server := newIntegrationTestServer(t)
 	defer server.Close()
 
-	body := mustReadFixture(t, "../test_data/workflow_run.json")
+	body := mustReadFixture(t, "workflow_run.json")
 	req, err := http.NewRequest(http.MethodPost, server.URL+"/webhook", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
@@ -106,11 +108,11 @@ func TestWebhookInvalidSignatureIntegration(t *testing.T) {
 	}
 }
 
-func TestWebhookUnsupportedEventIntegration(t *testing.T) {
+func TestIntegrationWebhookUnsupportedEvent(t *testing.T) {
 	server := newIntegrationTestServer(t)
 	defer server.Close()
 
-	body := mustReadFixture(t, "../test_data/workflow_run.json")
+	body := mustReadFixture(t, "workflow_run.json")
 	resp := sendWebhookRequest(t, server.URL, "unknown_event", body, "delivery-unsupported")
 	defer func() { _ = resp.Body.Close() }()
 
@@ -124,7 +126,7 @@ func TestWebhookUnsupportedEventIntegration(t *testing.T) {
 	}
 }
 
-func TestHealthAndMetricsEndpointsIntegration(t *testing.T) {
+func TestIntegrationHealthAndMetricsEndpoints(t *testing.T) {
 	server := newIntegrationTestServer(t)
 	defer server.Close()
 
@@ -191,8 +193,18 @@ func resetIntegrationTestMetrics() {
 	asyncWorkerCountGauge.Set(0)
 }
 
-func mustReadFixture(t *testing.T, path string) []byte {
+func mustReadFixture(t *testing.T, name string) []byte {
 	t.Helper()
+	allowed := map[string]string{
+		"workflow_run.json": "../test_data/workflow_run.json",
+		"workflow_job.json": "../test_data/workflow_job.json",
+		"push.json":         "../test_data/push.json",
+		"pull_request.json": "../test_data/pull_request.json",
+	}
+	path, ok := allowed[name]
+	if !ok {
+		t.Fatalf("unknown fixture %q", name)
+	}
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read fixture %s: %v", path, err)

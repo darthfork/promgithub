@@ -1,4 +1,4 @@
-.PHONY: build container container-security cross-platform debug release test test-all go-version coverage fmt lint deps security clean dev-setup
+.PHONY: build container container-security cross-platform debug release test test-unit test-integration test-suite test-all go-version coverage fmt lint deps security clean dev-setup
 
 include version
 
@@ -31,10 +31,19 @@ debug: LDFLAGS := $(LDFLAGS_DBG)
 debug: TARGET := $(TARGET)-debug
 debug: build
 
-test: PROMGITHUB_WEBHOOK_SECRET := test-secret
-test: ## Run unit tests
+test: test-unit ## Backward-compatible alias for unit tests
+
+test-unit: PROMGITHUB_WEBHOOK_SECRET := test-secret
+test-unit: ## Run unit tests
 	@echo "${COLOR_GREEN}Running Unit Tests..${COLOR_RESET}"
 	@go test -v $(SRC)
+
+test-integration: PROMGITHUB_WEBHOOK_SECRET := test-secret
+test-integration: ## Run integration tests
+	@echo "${COLOR_GREEN}Running Integration Tests..${COLOR_RESET}"
+	@go test -tags=integration -v $(SRC)
+
+test-suite: test-unit test-integration ## Run the full Go test suite
 
 coverage: ## Run unit tests with coverage
 	@echo "${COLOR_GREEN}Running Coverage Checks..${COLOR_RESET}"
@@ -97,7 +106,7 @@ container-security: mkdir ## Run container security scan
 	@echo "${COLOR_GREEN}Running container security scan...${COLOR_RESET}"
 	@trivy image --format json --output build/trivy-report.json $(CONTAINER_REGISTRY):$(VERSION)
 
-test-all: test coverage security lint ## Run all tests and checks
+test-all: test-suite coverage security lint ## Run all tests and checks
 
 dev-setup: deps setup-commit-hooks ## Setup development environment
 	@echo "Development environment ready"

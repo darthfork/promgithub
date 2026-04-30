@@ -16,8 +16,8 @@ permissions:
   security-events: write
 
 jobs:
-  build:
-    name: Build promgithub
+  unit-and-build:
+    name: Unit, lint, build, and coverage
     runs-on: ubuntu-24.04
 
     steps:
@@ -53,8 +53,8 @@ jobs:
       - name: Build
         run: make build
 
-      - name: Test
-        run: make test
+      - name: Unit Tests
+        run: make test-unit
 
       - name: Coverage
         run: make coverage
@@ -64,3 +64,29 @@ jobs:
 
       - name: Container Security Scan
         run: make container-security
+
+  integration-tests:
+    name: Integration tests
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        id: environment
+        run: |
+          GOVERSION=$(make go-version)
+          echo "GOVERSION=${GOVERSION}" >> $GITHUB_ENV
+
+      - name: Set up Golang
+        uses: actions/setup-go@v5
+        id: go
+        with:
+          go-version: ${{ env.GOVERSION }}
+
+      - name: Install Tools and Dependencies
+        run: make deps
+
+      - name: Integration Tests
+        run: make test-integration
