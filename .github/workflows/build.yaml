@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   unit-and-build:
-    name: Unit, lint, build, and coverage
+    name: build and test
     runs-on: ubuntu-24.04
 
     steps:
