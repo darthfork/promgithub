@@ -54,7 +54,7 @@ jobs:
         run: make build
 
       - name: Unit Tests
-        run: make test-unit
+        run: make unit-test
 
       - name: Coverage
         run: make coverage
@@ -89,4 +89,4 @@ jobs:
         run: make deps
 
       - name: Integration Tests
-        run: make test-integration
+        run: make integration-test
