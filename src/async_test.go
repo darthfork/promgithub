@@ -35,8 +35,16 @@ func TestAsyncProcessorEnqueueAndProcess(t *testing.T) {
 		t.Fatal("timed out waiting for async processing")
 	}
 
-	if got := testutil.ToFloat64(asyncProcessedEventsCounter.WithLabelValues("workflow_run")); got != 1 {
-		t.Fatalf("expected processed counter to be 1, got %v", got)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if got := testutil.ToFloat64(asyncProcessedEventsCounter.WithLabelValues("workflow_run")); got == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			got := testutil.ToFloat64(asyncProcessedEventsCounter.WithLabelValues("workflow_run"))
+			t.Fatalf("expected processed counter to be 1, got %v", got)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

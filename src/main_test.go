@@ -156,12 +156,15 @@ func TestRunServerShutsDownOnContextCancel(t *testing.T) {
 	}
 	defer func() { _ = listener.Close() }()
 
-	server := &http.Server{Handler: router}
+	server := &http.Server{
+		Handler:           router,
+		ReadHeaderTimeout: 2 * time.Second,
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runServerWithListener(ctx, server, zap.NewNop(), listener)
+		errCh <- runServerWithListener(ctx, server, listener)
 	}()
 
 	resp, err := http.Get("http://" + listener.Addr().String() + "/health")
@@ -182,7 +185,7 @@ func TestRunServerShutsDownOnContextCancel(t *testing.T) {
 	}
 }
 
-func runServerWithListener(ctx context.Context, server *http.Server, logger *zap.Logger, listener net.Listener) error {
+func runServerWithListener(ctx context.Context, server *http.Server, listener net.Listener) error {
 	errCh := make(chan error, 1)
 	go func() {
 		err := server.Serve(listener)
