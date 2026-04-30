@@ -1,4 +1,4 @@
-.PHONY: build container container-security cross-platform debug release test test-all go-version coverage fmt lint deps security clean dev-setup
+.PHONY: build container container-security cross-platform debug release test unit-test integration-test test-all go-version coverage fmt lint deps security clean dev-setup
 
 include version
 
@@ -31,10 +31,17 @@ debug: LDFLAGS := $(LDFLAGS_DBG)
 debug: TARGET := $(TARGET)-debug
 debug: build
 
-test: PROMGITHUB_WEBHOOK_SECRET := test-secret
-test: ## Run unit tests
+test: unit-test integration-test ## Run the full Go test suite
+
+unit-test: PROMGITHUB_WEBHOOK_SECRET := test-secret
+unit-test: ## Run unit tests
 	@echo "${COLOR_GREEN}Running Unit Tests..${COLOR_RESET}"
 	@go test -v $(SRC)
+
+integration-test: PROMGITHUB_WEBHOOK_SECRET := test-secret
+integration-test: ## Run integration tests
+	@echo "${COLOR_GREEN}Running Integration Tests..${COLOR_RESET}"
+	@go test -tags=integration -v $(SRC)
 
 coverage: ## Run unit tests with coverage
 	@echo "${COLOR_GREEN}Running Coverage Checks..${COLOR_RESET}"
