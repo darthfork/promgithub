@@ -54,6 +54,8 @@ spec:
             - name: PROMGITHUB_REDIS_DELIVERY_TTL
               value: "{{ .Values.redisConfig.deliveryTTL | default "24h" }}"
             {{- end }}
+            - name: PROMGITHUB_ENABLE_DETAILED_METRICS
+              value: "{{ .Values.metrics.enableDetailed | default false }}"
           envFrom:
             - secretRef:
                 name: "{{ include "promgithub.fullname" . }}"

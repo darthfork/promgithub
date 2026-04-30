@@ -101,6 +101,11 @@ type runMetricSet struct {
 	durationHistogram *prometheus.HistogramVec
 }
 
+type runMetricSets struct {
+	core     runMetricSet
+	detailed runMetricSet
+}
+
 type runStoreMethods struct {
 	get    func(context.Context, int) (RunState, bool, error)
 	update func(context.Context, int, RunState) error
@@ -255,7 +260,18 @@ func shouldApplyStateTransition(previous, next RunState) bool {
 	return true
 }
 
-func applyGaugeDelta(details RunState, delta float64, queuedGauge, inProgressGauge, completedGauge *prometheus.GaugeVec) {
+func applyCoreGaugeDelta(details RunState, delta float64, queuedGauge, inProgressGauge, completedGauge *prometheus.GaugeVec) {
+	switch normalizeStatus(details.Status) {
+	case statusQueued:
+		queuedGauge.WithLabelValues(details.Repository).Add(delta)
+	case statusInProgress:
+		inProgressGauge.WithLabelValues(details.Repository).Add(delta)
+	case statusCompleted:
+		completedGauge.WithLabelValues(details.Repository, details.Conclusion).Add(delta)
+	}
+}
+
+func applyDetailedGaugeDelta(details RunState, delta float64, queuedGauge, inProgressGauge, completedGauge *prometheus.GaugeVec) {
 	switch normalizeStatus(details.Status) {
 	case statusQueued:
 		queuedGauge.WithLabelValues(details.Repository, details.Branch, details.Name).Add(delta)
@@ -266,7 +282,25 @@ func applyGaugeDelta(details RunState, delta float64, queuedGauge, inProgressGau
 	}
 }
 
-func observeDuration(details RunState, durationHistogram *prometheus.HistogramVec) {
+func observeCoreDuration(details RunState, durationHistogram *prometheus.HistogramVec) {
+	if normalizeStatus(details.Status) != statusCompleted {
+		return
+	}
+
+	startedAt, startedOK := parseMetricTime(details.StartedAt)
+	endedAt, endedOK := parseMetricTime(details.EndedAt)
+	if !startedOK || !endedOK || endedAt.Before(startedAt) {
+		return
+	}
+
+	durationHistogram.WithLabelValues(
+		details.Repository,
+		details.Status,
+		details.Conclusion,
+	).Observe(endedAt.Sub(startedAt).Seconds())
+}
+
+func observeDetailedDuration(details RunState, durationHistogram *prometheus.HistogramVec) {
 	if normalizeStatus(details.Status) != statusCompleted {
 		return
 	}
@@ -286,7 +320,24 @@ func observeDuration(details RunState, durationHistogram *prometheus.HistogramVe
 	).Observe(endedAt.Sub(startedAt).Seconds())
 }
 
-func applyStatefulMetrics(details RunState, previous *RunState, metrics runMetricSet) {
+func applyCoreStatefulMetrics(details RunState, previous *RunState, metrics runMetricSet) {
+	metrics.statusCounter.WithLabelValues(
+		details.Repository,
+		details.Status,
+		details.Conclusion,
+	).Inc()
+
+	if previous != nil {
+		applyCoreGaugeDelta(*previous, -1, metrics.queuedGauge, metrics.inProgressGauge, metrics.completedGauge)
+	}
+	applyCoreGaugeDelta(details, 1, metrics.queuedGauge, metrics.inProgressGauge, metrics.completedGauge)
+
+	if previous == nil || normalizeStatus(previous.Status) != statusCompleted {
+		observeCoreDuration(details, metrics.durationHistogram)
+	}
+}
+
+func applyDetailedStatefulMetrics(details RunState, previous *RunState, metrics runMetricSet) {
 	metrics.statusCounter.WithLabelValues(
 		details.Repository,
 		details.Branch,
@@ -296,12 +347,12 @@ func applyStatefulMetrics(details RunState, previous *RunState, metrics runMetri
 	).Inc()
 
 	if previous != nil {
-		applyGaugeDelta(*previous, -1, metrics.queuedGauge, metrics.inProgressGauge, metrics.completedGauge)
+		applyDetailedGaugeDelta(*previous, -1, metrics.queuedGauge, metrics.inProgressGauge, metrics.completedGauge)
 	}
-	applyGaugeDelta(details, 1, metrics.queuedGauge, metrics.inProgressGauge, metrics.completedGauge)
+	applyDetailedGaugeDelta(details, 1, metrics.queuedGauge, metrics.inProgressGauge, metrics.completedGauge)
 
 	if previous == nil || normalizeStatus(previous.Status) != statusCompleted {
-		observeDuration(details, metrics.durationHistogram)
+		observeDetailedDuration(details, metrics.durationHistogram)
 	}
 }
 
@@ -341,12 +392,15 @@ func updateTrackedRunMetrics(
 	details runMetricDetails,
 	store runStoreMethods,
 	entityName string,
-	metrics runMetricSet,
+	metrics runMetricSets,
 ) {
 	nextState := normalizeRunState(details)
 
 	if stateStore == nil {
-		applyStatefulMetrics(nextState, nil, metrics)
+		applyCoreStatefulMetrics(nextState, nil, metrics.core)
+		if enableDetailedMetrics {
+			applyDetailedStatefulMetrics(nextState, nil, metrics.detailed)
+		}
 		return
 	}
 
@@ -362,7 +416,10 @@ func updateTrackedRunMetrics(
 		return
 	}
 
-	applyStatefulMetrics(nextState, previousState, metrics)
+	applyCoreStatefulMetrics(nextState, previousState, metrics.core)
+	if enableDetailedMetrics {
+		applyDetailedStatefulMetrics(nextState, previousState, metrics.detailed)
+	}
 }
 
 func workflowRunStoreMethods() runStoreMethods {
@@ -409,12 +466,21 @@ func updateWorkflowMetrics(ctx context.Context, body []byte) {
 		},
 		workflowRunStoreMethods(),
 		"workflow_run",
-		runMetricSet{
-			statusCounter:     workflowStatusCounter,
-			queuedGauge:       workflowQueuedGauge,
-			inProgressGauge:   workflowInProgressGauge,
-			completedGauge:    workflowCompletedGauge,
-			durationHistogram: workflowDurationHistogram,
+		runMetricSets{
+			core: runMetricSet{
+				statusCounter:     workflowStatusCounter,
+				queuedGauge:       workflowQueuedGauge,
+				inProgressGauge:   workflowInProgressGauge,
+				completedGauge:    workflowCompletedGauge,
+				durationHistogram: workflowDurationHistogram,
+			},
+			detailed: runMetricSet{
+				statusCounter:     workflowStatusDetailedCounter,
+				queuedGauge:       workflowQueuedDetailedGauge,
+				inProgressGauge:   workflowInProgressDetailedGauge,
+				completedGauge:    workflowCompletedDetailedGauge,
+				durationHistogram: workflowDurationDetailedHistogram,
+			},
 		},
 	)
 }
@@ -441,12 +507,21 @@ func updateJobMetrics(ctx context.Context, body []byte) {
 		},
 		workflowJobStoreMethods(),
 		"workflow_job",
-		runMetricSet{
-			statusCounter:     jobStatusCounter,
-			queuedGauge:       jobQueuedGauge,
-			inProgressGauge:   jobInProgressGauge,
-			completedGauge:    jobCompletedGauge,
-			durationHistogram: jobDurationHistogram,
+		runMetricSets{
+			core: runMetricSet{
+				statusCounter:     jobStatusCounter,
+				queuedGauge:       jobQueuedGauge,
+				inProgressGauge:   jobInProgressGauge,
+				completedGauge:    jobCompletedGauge,
+				durationHistogram: jobDurationHistogram,
+			},
+			detailed: runMetricSet{
+				statusCounter:     jobStatusDetailedCounter,
+				queuedGauge:       jobQueuedDetailedGauge,
+				inProgressGauge:   jobInProgressDetailedGauge,
+				completedGauge:    jobCompletedDetailedGauge,
+				durationHistogram: jobDurationDetailedHistogram,
+			},
 		},
 	)
 }
@@ -474,7 +549,14 @@ func updatePullRequestMetrics(body []byte) {
 
 	pullRequestCounter.WithLabelValues(
 		payload.Repository.FullName,
-		payload.PullRequest.Base.Ref,
 		payload.Action,
 	).Inc()
+
+	if enableDetailedMetrics {
+		pullRequestDetailedCounter.WithLabelValues(
+			payload.Repository.FullName,
+			payload.PullRequest.Base.Ref,
+			payload.Action,
+		).Inc()
+	}
 }

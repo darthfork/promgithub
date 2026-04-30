@@ -46,6 +46,9 @@ redisConfig:
   keyPrefix: promgithub
   deliveryTTL: 24h
 
+metrics:
+  enableDetailed: false
+
 # This is for setting up the promgithub service
 service:
   # This sets the service type

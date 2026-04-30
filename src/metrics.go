@@ -1,18 +1,25 @@
 package main
 
 import (
+	"os"
+	"strings"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+const detailedMetricsEnvVar = "PROMGITHUB_ENABLE_DETAILED_METRICS"
+
 var (
+	enableDetailedMetrics = parseBoolEnv(os.Getenv(detailedMetricsEnvVar))
+
 	// Workflow metrics.
 	workflowStatusCounter = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "promgithub_workflow_status",
 			Help: "Total number of workflow runs with status",
 		},
-		[]string{"repository", "branch", "workflow_name", "workflow_status", "conclusion"},
+		[]string{"repository", "workflow_status", "conclusion"},
 	)
 
 	workflowDurationHistogram = promauto.NewHistogramVec(
@@ -21,7 +28,7 @@ var (
 			Help:    "Duration of workflow runs",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"repository", "branch", "workflow_name", "workflow_status", "conclusion"},
+		[]string{"repository", "workflow_status", "conclusion"},
 	)
 
 	workflowQueuedGauge = promauto.NewGaugeVec(
@@ -29,7 +36,7 @@ var (
 			Name: "promgithub_workflow_queued",
 			Help: "Number of workflow runs queued",
 		},
-		[]string{"repository", "branch", "workflow_name"},
+		[]string{"repository"},
 	)
 
 	workflowInProgressGauge = promauto.NewGaugeVec(
@@ -37,13 +44,54 @@ var (
 			Name: "promgithub_workflow_in_progress",
 			Help: "Number of workflow runs in progress",
 		},
-		[]string{"repository", "branch", "workflow_name"},
+		[]string{"repository"},
 	)
 
 	workflowCompletedGauge = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "promgithub_workflow_completed",
 			Help: "Number of workflow runs completed",
+		},
+		[]string{"repository", "workflow_conclusion"},
+	)
+
+	workflowStatusDetailedCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "promgithub_workflow_status_detailed",
+			Help: "Total number of workflow runs with status and optional high-cardinality labels",
+		},
+		[]string{"repository", "branch", "workflow_name", "workflow_status", "conclusion"},
+	)
+
+	workflowDurationDetailedHistogram = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "promgithub_workflow_duration_detailed",
+			Help:    "Duration of workflow runs with optional high-cardinality labels",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"repository", "branch", "workflow_name", "workflow_status", "conclusion"},
+	)
+
+	workflowQueuedDetailedGauge = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "promgithub_workflow_queued_detailed",
+			Help: "Number of workflow runs queued with optional high-cardinality labels",
+		},
+		[]string{"repository", "branch", "workflow_name"},
+	)
+
+	workflowInProgressDetailedGauge = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "promgithub_workflow_in_progress_detailed",
+			Help: "Number of workflow runs in progress with optional high-cardinality labels",
+		},
+		[]string{"repository", "branch", "workflow_name"},
+	)
+
+	workflowCompletedDetailedGauge = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "promgithub_workflow_completed_detailed",
+			Help: "Number of workflow runs completed with optional high-cardinality labels",
 		},
 		[]string{"repository", "branch", "workflow_conclusion", "workflow_name"},
 	)
@@ -54,7 +102,7 @@ var (
 			Name: "promgithub_job_status",
 			Help: "Total number of jobs with status",
 		},
-		[]string{"repository", "branch", "workflow_name", "job_status", "job_conclusion"},
+		[]string{"repository", "job_status", "job_conclusion"},
 	)
 
 	jobDurationHistogram = promauto.NewHistogramVec(
@@ -63,7 +111,7 @@ var (
 			Help:    "Duration of jobs runs in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"repository", "branch", "workflow_name", "job_status", "job_conclusion"},
+		[]string{"repository", "job_status", "job_conclusion"},
 	)
 
 	jobQueuedGauge = promauto.NewGaugeVec(
@@ -71,7 +119,7 @@ var (
 			Name: "promgithub_job_queued",
 			Help: "Number of jobs queued",
 		},
-		[]string{"repository", "branch", "workflow_name"},
+		[]string{"repository"},
 	)
 
 	jobInProgressGauge = promauto.NewGaugeVec(
@@ -79,13 +127,54 @@ var (
 			Name: "promgithub_job_in_progress",
 			Help: "Number of jobs in progress",
 		},
-		[]string{"repository", "branch", "workflow_name"},
+		[]string{"repository"},
 	)
 
 	jobCompletedGauge = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "promgithub_job_completed",
 			Help: "Number of jobs completed",
+		},
+		[]string{"repository", "job_conclusion"},
+	)
+
+	jobStatusDetailedCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "promgithub_job_status_detailed",
+			Help: "Total number of jobs with status and optional high-cardinality labels",
+		},
+		[]string{"repository", "branch", "workflow_name", "job_status", "job_conclusion"},
+	)
+
+	jobDurationDetailedHistogram = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "promgithub_job_duration_detailed",
+			Help:    "Duration of jobs runs in seconds with optional high-cardinality labels",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"repository", "branch", "workflow_name", "job_status", "job_conclusion"},
+	)
+
+	jobQueuedDetailedGauge = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "promgithub_job_queued_detailed",
+			Help: "Number of jobs queued with optional high-cardinality labels",
+		},
+		[]string{"repository", "branch", "workflow_name"},
+	)
+
+	jobInProgressDetailedGauge = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "promgithub_job_in_progress_detailed",
+			Help: "Number of jobs in progress with optional high-cardinality labels",
+		},
+		[]string{"repository", "branch", "workflow_name"},
+	)
+
+	jobCompletedDetailedGauge = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "promgithub_job_completed_detailed",
+			Help: "Number of jobs completed with optional high-cardinality labels",
 		},
 		[]string{"repository", "branch", "job_conclusion", "workflow_name"},
 	)
@@ -102,6 +191,14 @@ var (
 		prometheus.CounterOpts{
 			Name: "promgithub_pull_request",
 			Help: "Total number of pull requests",
+		},
+		[]string{"repository", "pull_request_status"},
+	)
+
+	pullRequestDetailedCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "promgithub_pull_request_detailed",
+			Help: "Total number of pull requests with optional high-cardinality labels",
 		},
 		[]string{"repository", "base_branch", "pull_request_status"},
 	)
@@ -160,3 +257,12 @@ var (
 		[]string{"event_type"},
 	)
 )
+
+func parseBoolEnv(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}

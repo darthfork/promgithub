@@ -21,6 +21,7 @@ The service supports the following environment variables:
 - `PROMGITHUB_REDIS_DB` (optional): Redis database number, default `0`.
 - `PROMGITHUB_REDIS_KEY_PREFIX` (optional): Prefix used for Redis keys, default `promgithub`.
 - `PROMGITHUB_REDIS_DELIVERY_TTL` (optional): TTL for webhook delivery dedupe keys, default `24h`.
+- `PROMGITHUB_ENABLE_DETAILED_METRICS` (optional): When `true`, also emits higher-cardinality `*_detailed` metric families with labels such as `branch`, `workflow_name`, and `base_branch`. Default `false`.
 
 If Redis is configured, the service stores delivery and run state in Redis.
 
@@ -43,6 +44,7 @@ PROMGITHUB_REDIS_PASSWORD="<redis password>" \
 PROMGITHUB_REDIS_DB="0" \
 PROMGITHUB_REDIS_KEY_PREFIX="promgithub" \
 PROMGITHUB_REDIS_DELIVERY_TTL="24h" \
+PROMGITHUB_ENABLE_DETAILED_METRICS="true" \
 PROMGITHUB_SERVICE_PORT="8080" \
 /path/to/binary/promgithub
 ```
@@ -67,6 +69,7 @@ docker run \
   -e PROMGITHUB_REDIS_DB=0 \
   -e PROMGITHUB_REDIS_KEY_PREFIX=promgithub \
   -e PROMGITHUB_REDIS_DELIVERY_TTL=24h \
+  -e PROMGITHUB_ENABLE_DETAILED_METRICS=true \
   -e PROMGITHUB_SERVICE_PORT=8080 \
   -p 8080:8080 \
   ghcr.io/darthfork/promgithub:<version>
@@ -91,6 +94,7 @@ services:
       PROMGITHUB_REDIS_DB: 0
       PROMGITHUB_REDIS_KEY_PREFIX: promgithub
       PROMGITHUB_REDIS_DELIVERY_TTL: 24h
+      PROMGITHUB_ENABLE_DETAILED_METRICS: "true"
       PROMGITHUB_SERVICE_PORT: 8080
     ports:
       - "8080:8080"
@@ -129,6 +133,8 @@ promgithub:
     db: 0
     keyPrefix: promgithub
     deliveryTTL: 24h
+  metrics:
+    enableDetailed: false
 ```
 
 ### Values for a bundled Redis deployment
@@ -146,6 +152,8 @@ promgithub:
     db: 0
     keyPrefix: promgithub
     deliveryTTL: 24h
+  metrics:
+    enableDetailed: true
 ```
 
 When `redis.enabled=true`, the chart deploys Redis as a dependency and configures `promgithub` to connect to it automatically.
