@@ -253,12 +253,14 @@ func main() {
 		if err != nil {
 			logger.Fatal("Unable to initialize Redis state store", zap.Error(err))
 		}
-		defer func() {
-			if closeErr := stateStore.Close(); closeErr != nil {
-				logger.Warn("Failed to close Redis state store", zap.Error(closeErr))
-			}
-		}()
+	} else {
+		stateStore = newLocalStateStore(defaultRedisDeliveryTTL)
 	}
+	defer func() {
+		if closeErr := stateStore.Close(); closeErr != nil {
+			logger.Warn("Failed to close state store", zap.Error(closeErr))
+		}
+	}()
 	logRedisMode(logger, redisEnabled, redisConfig.Addr)
 
 	asyncConfig, err := newAsyncProcessorConfigFromEnv()

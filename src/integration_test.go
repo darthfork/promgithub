@@ -79,6 +79,25 @@ func TestIntegrationWebhookMetrics(t *testing.T) {
 	}
 }
 
+func TestIntegrationDuplicateDeliveryDoesNotDoubleCountPushMetrics(t *testing.T) {
+	server := newIntegrationTestServer(t)
+	defer server.Close()
+
+	body := mustReadFixture(t, "push.json")
+	for i := 0; i < 2; i++ {
+		resp := sendWebhookRequest(t, server.URL, "push", body, "delivery-duplicate-push")
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected duplicate delivery attempt %d to be accepted or ignored, got %d", i+1, resp.StatusCode)
+		}
+	}
+
+	metrics := waitForMetricsSubstring(t, server.URL, `promgithub_commit_pushed{repository="user/repo"} 1`)
+	if strings.Contains(metrics, `promgithub_commit_pushed{repository="user/repo"} 2`) {
+		t.Fatalf("duplicate delivery double-counted push metrics:\n%s", metrics)
+	}
+}
+
 func TestIntegrationWebhookInvalidSignature(t *testing.T) {
 	server := newIntegrationTestServer(t)
 	defer server.Close()
@@ -156,7 +175,7 @@ func newIntegrationTestServer(t *testing.T) *httptest.Server {
 	resetIntegrationTestMetrics()
 
 	githubWebhookSecret = []byte("integration-test-secret")
-	stateStore = newInMemoryStateStore()
+	stateStore = newLocalStateStore(defaultRedisDeliveryTTL)
 	eventProcessor = newAsyncEventProcessor(asyncProcessorConfig{WorkerCount: 1, QueueSize: 8}, zap.NewNop())
 	eventProcessor.Start()
 	t.Cleanup(func() {
