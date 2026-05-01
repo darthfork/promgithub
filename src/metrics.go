@@ -159,4 +159,20 @@ var (
 		},
 		[]string{"event_type"},
 	)
+
+	duplicateDeliveriesSeenCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "promgithub_duplicate_deliveries_seen_total",
+			Help: "Total number of duplicate GitHub webhook deliveries observed",
+		},
+		[]string{"event_type"},
+	)
+
+	duplicateDeliveriesDroppedCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "promgithub_duplicate_deliveries_dropped_total",
+			Help: "Total number of duplicate GitHub webhook deliveries dropped",
+		},
+		[]string{"event_type"},
+	)
 )
