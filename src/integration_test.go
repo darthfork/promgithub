@@ -151,6 +151,38 @@ func TestIntegrationHealthAndMetricsEndpoints(t *testing.T) {
 	}
 }
 
+func TestIntegrationDuplicateDeliveryDoesNotInflateMetrics(t *testing.T) {
+	server := newIntegrationTestServer(t)
+	defer server.Close()
+
+	body := mustReadFixture(t, "workflow_run.json")
+
+	resp := sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-duplicate")
+	if resp.StatusCode != http.StatusAccepted {
+		_ = resp.Body.Close()
+		t.Fatalf("expected first status %d, got %d", http.StatusAccepted, resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	resp = sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-duplicate")
+	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
+		t.Fatalf("expected duplicate status %d, got %d", http.StatusOK, resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	metrics := waitForMetricsSubstring(t, server.URL, `promgithub_duplicate_deliveries_seen_total{event_type="workflow_run"} 1`)
+	if !strings.Contains(metrics, `promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1`) {
+		t.Fatalf("expected workflow metric to remain at 1, got:\n%s", metrics)
+	}
+	if !strings.Contains(metrics, `promgithub_duplicate_deliveries_seen_total{event_type="workflow_run"} 1`) {
+		t.Fatalf("expected duplicate seen metric, got:\n%s", metrics)
+	}
+	if !strings.Contains(metrics, `promgithub_duplicate_deliveries_dropped_total{event_type="workflow_run"} 1`) {
+		t.Fatalf("expected duplicate dropped metric, got:\n%s", metrics)
+	}
+}
+
 func newIntegrationTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	resetIntegrationTestMetrics()

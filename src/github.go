@@ -124,6 +124,8 @@ func validateHMAC(body []byte, signature string, secret []byte) bool {
 	return hmac.Equal([]byte(computedSignature), []byte(signature))
 }
 
+var deliveryDeduperCache = newDeliveryDeduper(defaultDeliveryRetention, defaultDeliveryCacheEntries)
+
 func githubEventsHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -140,22 +142,19 @@ func githubEventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	eventType := r.Header.Get("X-GitHub-Event")
 	deliveryID := strings.TrimSpace(r.Header.Get("X-GitHub-Delivery"))
-	if stateStore != nil && deliveryID != "" {
-		processed, storeErr := stateStore.MarkDeliveryProcessed(ctx, deliveryID)
-		if storeErr != nil {
-			http.Error(w, "Unable to record webhook delivery", http.StatusInternalServerError)
-			logger.Error("Unable to record webhook delivery", zap.String("deliveryID", deliveryID), zap.Error(storeErr))
-			return
-		}
-		if !processed {
-			logger.Info("Skipping duplicate GitHub delivery", zap.String("deliveryID", deliveryID))
-			w.WriteHeader(http.StatusOK)
-			return
-		}
+	duplicate, duplicateErr := markDuplicateDelivery(ctx, eventType, deliveryID)
+	if duplicateErr != nil {
+		http.Error(w, "Unable to record webhook delivery", http.StatusInternalServerError)
+		logger.Error("Unable to record webhook delivery", zap.String("deliveryID", deliveryID), zap.Error(duplicateErr))
+		return
+	}
+	if duplicate {
+		w.WriteHeader(http.StatusOK)
+		return
 	}
 
-	eventType := r.Header.Get("X-GitHub-Event")
 	if eventProcessor != nil {
 		if err := eventProcessor.Enqueue(ctx, eventType, body); err != nil {
 			http.Error(w, "Webhook queue is full", http.StatusServiceUnavailable)
@@ -180,6 +179,29 @@ func githubEventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func markDuplicateDelivery(ctx context.Context, eventType, deliveryID string) (bool, error) {
+	if deliveryID == "" {
+		return false, nil
+	}
+
+	if stateStore != nil {
+		processed, err := stateStore.MarkDeliveryProcessed(ctx, deliveryID)
+		if err != nil {
+			return false, err
+		}
+		if processed {
+			return false, nil
+		}
+	} else if !deliveryDeduperCache.SeenBefore(deliveryID, time.Now()) {
+		return false, nil
+	}
+
+	duplicateDeliveriesSeenCounter.WithLabelValues(eventType).Inc()
+	duplicateDeliveriesDroppedCounter.WithLabelValues(eventType).Inc()
+	logger.Info("Skipping duplicate GitHub delivery", zap.String("deliveryID", deliveryID), zap.String("eventType", eventType))
+	return true, nil
 }
 
 func normalizeRunState(details runMetricDetails) RunState {
