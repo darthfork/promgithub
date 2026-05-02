@@ -1,4 +1,4 @@
-.PHONY: build container container-security cross-platform debug release test unit-test integration-test test-all go-version coverage fmt lint deps security clean dev-setup
+.PHONY: build container container-security cross-platform debug release test unit-test integration-test redis-integration-test test-all go-version coverage fmt lint deps security clean dev-setup
 
 include version
 
@@ -42,6 +42,11 @@ integration-test: PROMGITHUB_WEBHOOK_SECRET := test-secret
 integration-test: ## Run integration tests
 	@echo "${COLOR_GREEN}Running Integration Tests..${COLOR_RESET}"
 	@go test -tags=integration -v $(SRC)
+
+redis-integration-test: PROMGITHUB_WEBHOOK_SECRET := test-secret
+redis-integration-test: ## Run Redis-backed integration tests against PROMGITHUB_REDIS_ADDR
+	@echo "${COLOR_GREEN}Running Redis Integration Tests..${COLOR_RESET}"
+	@go test -tags='integration redis' -run '^TestRedisIntegration' -v $(SRC)
 
 coverage: ## Run unit tests with coverage
 	@echo "${COLOR_GREEN}Running Coverage Checks..${COLOR_RESET}"

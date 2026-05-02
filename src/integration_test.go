@@ -218,6 +218,8 @@ func resetIntegrationTestMetrics() {
 	asyncEventsDroppedCounter.Reset()
 	asyncProcessingFailuresCounter.Reset()
 	asyncProcessingDurationHistogram.Reset()
+	duplicateDeliveriesSeenCounter.Reset()
+	duplicateDeliveriesDroppedCounter.Reset()
 	defaultServiceMetrics.apiCallsCounter.Reset()
 	defaultServiceMetrics.requestDurationHistogram.Reset()
 	asyncQueueDepthGauge.Set(0)

@@ -92,7 +92,7 @@ func (p *asyncEventProcessor) Stop() {
 
 func (p *asyncEventProcessor) Enqueue(ctx context.Context, eventType string, body []byte) error {
 	event := webhookEvent{
-		ctx:       ctx,
+		ctx:       context.WithoutCancel(ctx),
 		eventType: eventType,
 		body:      append([]byte(nil), body...),
 	}
