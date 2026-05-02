@@ -90,3 +90,41 @@ jobs:
 
       - name: Integration Tests
         run: make integration-test
+
+  redis-integration-tests:
+    name: Redis integration tests
+    runs-on: ubuntu-24.04
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        id: environment
+        run: |
+          GOVERSION=$(make go-version)
+          echo "GOVERSION=${GOVERSION}" >> $GITHUB_ENV
+          echo "PROMGITHUB_REDIS_ADDR=127.0.0.1:6379" >> $GITHUB_ENV
+
+      - name: Set up Golang
+        uses: actions/setup-go@v5
+        id: go
+        with:
+          go-version: ${{ env.GOVERSION }}
+
+      - name: Install Tools and Dependencies
+        run: make deps
+
+      - name: Redis Integration Tests
+        run: make redis-integration-test
