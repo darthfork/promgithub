@@ -31,7 +31,7 @@ debug: LDFLAGS := $(LDFLAGS_DBG)
 debug: TARGET := $(TARGET)-debug
 debug: build
 
-test: unit-test integration-test ## Run the full Go test suite
+test: unit-test integration-test redis-integration-test ## Run the full Go test suite
 
 unit-test: PROMGITHUB_WEBHOOK_SECRET := test-secret
 unit-test: ## Run unit tests
