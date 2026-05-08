@@ -11,6 +11,7 @@ COLOR_RED		:= \033[31m
 USERNAME		:= darthfork
 TARGET			:= promgithub
 SRC			:= ./...
+GO_VERSION		:= $(shell cat .go-version)
 LDFLAGS			:= -X main.Version=$(VERSION) -s -w
 LDFLAGS_DBG		:= -X main.enableDebug=true -X main.Version=$(VERSION)
 BUILDDIR		:= build
@@ -70,7 +71,7 @@ install_tools: deps ## Install development tooling
 	@./utils/install_tools.sh
 
 container: ## Build promgithub service container
-	@docker build --progress=plain -t $(CONTAINER_REGISTRY):$(VERSION) .
+	@docker build --progress=plain --build-arg GO_VERSION=$(GO_VERSION) -t $(CONTAINER_REGISTRY):$(VERSION) .
 
 package-helm-chart: mkdir ## Package promgithub helm chart
 	@helm package $(CHART_SOURCE) -d $(BUILDDIR)
@@ -84,6 +85,7 @@ build-cross-platform-binaries: mkdir
 build-cross-platform-container: ci-check
 	@docker buildx build \
 		--platform $(PLATFORMS)\
+		--build-arg GO_VERSION=$(GO_VERSION) \
 		-t $(CONTAINER_REGISTRY):$(VERSION) \
 		--cache-from type=gha,scope=$(TARGET) \
 		--cache-to type=gha,mode=max,scope=$(TARGET) \
@@ -126,7 +128,7 @@ setup-commit-hooks:
 	@cp .github/hooks/* .git/hooks/
 
 go-version:
-	@grep '^go ' go.mod | awk '{print $$2}'
+	@cat .go-version
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile\
