@@ -1,5 +1,5 @@
 # Build stage
-ARG GO_VERSION=1.25.10
+ARG GO_VERSION
 FROM golang:${GO_VERSION} AS builder
 
 # Set non-root user for build
