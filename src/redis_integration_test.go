@@ -39,10 +39,8 @@ func TestRedisIntegrationDuplicateDeliverySharedAcrossServers(t *testing.T) {
 	}
 	_ = resp.Body.Close()
 
-	metrics := waitForMetricsSubstring(t, serverA.URL, `promgithub_duplicate_deliveries_seen_total{event_type="workflow_run"} 1`)
-	if !strings.Contains(metrics, `promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1`) {
-		t.Fatalf("expected workflow metric to be recorded once, got:\n%s", metrics)
-	}
+	waitForMetricsSubstring(t, serverA.URL, `promgithub_duplicate_deliveries_seen_total{event_type="workflow_run"} 1`)
+	metrics := waitForMetricsSubstring(t, serverA.URL, `promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1`)
 	if !strings.Contains(metrics, `promgithub_duplicate_deliveries_dropped_total{event_type="workflow_run"} 1`) {
 		t.Fatalf("expected duplicate delivery to be dropped by shared Redis state, got:\n%s", metrics)
 	}
