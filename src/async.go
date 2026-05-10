@@ -102,7 +102,7 @@ func (p *asyncEventProcessor) Enqueue(ctx context.Context, eventType string, bod
 		asyncQueueDepthGauge.Set(float64(len(p.queue)))
 		return nil
 	default:
-		asyncEventsDroppedCounter.WithLabelValues(eventType, "queue_full").Inc()
+		asyncQueueDroppedCounter.WithLabelValues(eventType).Inc()
 		asyncQueueDepthGauge.Set(float64(len(p.queue)))
 		return fmt.Errorf("event queue is full")
 	}
@@ -117,7 +117,7 @@ func (p *asyncEventProcessor) runWorker(workerID int) {
 
 		processor, ok := p.processFn[event.eventType]
 		if !ok {
-			asyncEventsDroppedCounter.WithLabelValues(event.eventType, "unsupported_event").Inc()
+			asyncUnsupportedEventsCounter.WithLabelValues(event.eventType).Inc()
 			continue
 		}
 

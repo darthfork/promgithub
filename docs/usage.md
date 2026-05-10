@@ -21,8 +21,22 @@ The service supports the following environment variables:
 - `PROMGITHUB_REDIS_DB` (optional): Redis database number, default `0`.
 - `PROMGITHUB_REDIS_KEY_PREFIX` (optional): Prefix used for Redis keys, default `promgithub`.
 - `PROMGITHUB_REDIS_DELIVERY_TTL` (optional): TTL for webhook delivery dedupe keys, default `24h`.
+- `PROMGITHUB_EVENT_WORKERS` (optional): Number of async webhook processing workers, default `4`.
+- `PROMGITHUB_EVENT_QUEUE_SIZE` (optional): Bounded async webhook queue size, default `256`.
 
 If Redis is configured, the service stores delivery and run state in Redis.
+
+### Async processing and backpressure
+
+Webhook requests are acknowledged after signature validation, duplicate-delivery recording, and enqueueing into the bounded async processor.
+
+- Accepted events return `202 Accepted` and are processed by background workers.
+- Duplicate deliveries return `200 OK` and do not enqueue duplicate work.
+- If the queue is full, the request returns `503 Service Unavailable` and increments `promgithub_event_queue_dropped_total{event_type="<event>"}`.
+- Processing panics are recovered, logged, and exposed via `promgithub_event_processing_failures_total`; workers continue handling later events.
+- On graceful termination, the processor stops accepting new events and drains accepted in-flight/queued events before exit.
+
+Watch `promgithub_event_queue_depth`, `promgithub_event_queue_capacity`, `promgithub_event_worker_count`, `promgithub_event_processed_total`, `promgithub_event_queue_dropped_total`, `promgithub_event_unsupported_total`, and `promgithub_event_processing_failures_total` to tune worker and queue settings.
 
 ## Running the service
 
