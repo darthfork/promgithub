@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -13,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -183,22 +185,160 @@ func TestIntegrationDuplicateDeliveryDoesNotInflateMetrics(t *testing.T) {
 	}
 }
 
+func TestIntegrationAsyncQueueFullReturnsUnavailableAndExposesDropMetrics(t *testing.T) {
+	server := newIntegrationTestServerWithAsyncConfig(t, asyncProcessorConfig{WorkerCount: 1, QueueSize: 1})
+	defer server.Close()
+
+	started := make(chan struct{})
+	unblock := make(chan struct{})
+	eventProcessor.processFn["workflow_run"] = func(_ context.Context, _ []byte) {
+		select {
+		case <-started:
+		default:
+			close(started)
+		}
+		<-unblock
+	}
+	t.Cleanup(func() {
+		select {
+		case <-unblock:
+		default:
+			close(unblock)
+		}
+	})
+
+	body := mustReadFixture(t, "workflow_run.json")
+	first := sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-queue-full-1")
+	assertResponseStatus(t, first, http.StatusAccepted)
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first async event to start processing")
+	}
+
+	second := sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-queue-full-2")
+	assertResponseStatus(t, second, http.StatusAccepted)
+
+	third := sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-queue-full-3")
+	assertResponseStatus(t, third, http.StatusServiceUnavailable)
+
+	metrics := waitForMetricsSubstring(t, server.URL, `promgithub_event_dropped_total{event_type="workflow_run",reason="queue_full"} 1`)
+	if !strings.Contains(metrics, `promgithub_event_dropped_total{event_type="workflow_run",reason="queue_full"} 1`) {
+		t.Fatalf("expected queue-full drop metric, got:\n%s", metrics)
+	}
+}
+
+func TestIntegrationAsyncProcessingFailureIsVisibleAndWorkerContinues(t *testing.T) {
+	server := newIntegrationTestServer(t)
+	defer server.Close()
+
+	var attempts atomic.Int32
+	eventProcessor.processFn["workflow_run"] = func(ctx context.Context, body []byte) {
+		if attempts.Add(1) == 1 {
+			panic("synthetic async processor failure")
+		}
+
+		updateWorkflowMetrics(ctx, body)
+	}
+
+	body := mustReadFixture(t, "workflow_run.json")
+	first := sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-failure-1")
+	assertResponseStatus(t, first, http.StatusAccepted)
+
+	metrics := waitForMetricsSubstring(t, server.URL, `promgithub_event_processing_failures_total{event_type="workflow_run"} 1`)
+	if !strings.Contains(metrics, `promgithub_event_processing_failures_total{event_type="workflow_run"} 1`) {
+		t.Fatalf("expected async processing failure metric, got:\n%s", metrics)
+	}
+
+	second := sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-failure-2")
+	assertResponseStatus(t, second, http.StatusAccepted)
+
+	metrics = waitForMetricsSubstring(t, server.URL, `promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1`)
+	if !strings.Contains(metrics, `promgithub_event_processed_total{event_type="workflow_run"} 1`) {
+		t.Fatalf("expected worker to continue and process the second event, got:\n%s", metrics)
+	}
+}
+
+func TestIntegrationAsyncShutdownDrainsQueuedEvents(t *testing.T) {
+	server := newIntegrationTestServerWithAsyncConfig(t, asyncProcessorConfig{WorkerCount: 1, QueueSize: 2})
+	defer server.Close()
+
+	started := make(chan struct{})
+	unblock := make(chan struct{})
+	eventProcessor.processFn["workflow_run"] = func(ctx context.Context, body []byte) {
+		select {
+		case <-started:
+		default:
+			close(started)
+		}
+		<-unblock
+		updateWorkflowMetrics(ctx, body)
+	}
+	t.Cleanup(func() {
+		select {
+		case <-unblock:
+		default:
+			close(unblock)
+		}
+	})
+
+	body := mustReadFixture(t, "workflow_run.json")
+	first := sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-shutdown-1")
+	assertResponseStatus(t, first, http.StatusAccepted)
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first async event to start processing")
+	}
+
+	second := sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-shutdown-2")
+	assertResponseStatus(t, second, http.StatusAccepted)
+
+	close(unblock)
+	eventProcessor.Stop()
+	eventProcessor = nil
+
+	metrics := mustFetchMetrics(t, server.URL)
+	if !strings.Contains(metrics, `promgithub_event_processed_total{event_type="workflow_run"} 2`) {
+		t.Fatalf("expected shutdown to drain both accepted events, got:\n%s", metrics)
+	}
+}
+
 func newIntegrationTestServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return newIntegrationTestServerWithAsyncConfig(t, asyncProcessorConfig{WorkerCount: 1, QueueSize: 8})
+}
+
+func newIntegrationTestServerWithAsyncConfig(t *testing.T, cfg asyncProcessorConfig) *httptest.Server {
 	t.Helper()
 	resetIntegrationTestMetrics()
 
 	githubWebhookSecret = []byte("integration-test-secret")
 	stateStore = newInMemoryStateStore()
-	eventProcessor = newAsyncEventProcessor(asyncProcessorConfig{WorkerCount: 1, QueueSize: 8}, zap.NewNop())
+	eventProcessor = newAsyncEventProcessor(cfg, zap.NewNop())
 	eventProcessor.Start()
 	t.Cleanup(func() {
-		eventProcessor.Stop()
+		if eventProcessor != nil {
+			eventProcessor.Stop()
+		}
 		eventProcessor = nil
 		stateStore = nil
 	})
 
 	router := setupRouter(zap.NewNop(), defaultServiceMetrics, prometheus.DefaultGatherer)
 	return httptest.NewServer(router)
+}
+
+func assertResponseStatus(t *testing.T, resp *http.Response, expectedStatus int) {
+	t.Helper()
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != expectedStatus {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected status %d, got %d with body %q", expectedStatus, resp.StatusCode, strings.TrimSpace(string(body)))
+	}
 }
 
 func resetIntegrationTestMetrics() {
