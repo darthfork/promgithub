@@ -28,7 +28,8 @@ It is designed to be simple to deploy and can run either:
 | `promgithub_event_queue_capacity` | Gauge | none | Configured capacity of the webhook event queue |
 | `promgithub_event_worker_count` | Gauge | none | Configured number of async webhook event workers |
 | `promgithub_event_processed_total` | Counter | `event_type` | Total number of webhook events processed asynchronously |
-| `promgithub_event_dropped_total` | Counter | `event_type`, `reason` | Total number of webhook events dropped before processing |
+| `promgithub_event_queue_dropped_total` | Counter | `event_type` | Total number of webhook events dropped because the async processing queue was full |
+| `promgithub_event_unsupported_total` | Counter | `event_type` | Total number of unsupported webhook events received by the async processor |
 | `promgithub_event_processing_failures_total` | Counter | `event_type` | Total number of async webhook processing failures |
 | `promgithub_event_processing_duration_seconds` | Histogram | `event_type` | Duration of async webhook event processing |
 | `promgithub_duplicate_deliveries_seen_total` | Counter | `event_type` | Duplicate webhook deliveries observed |

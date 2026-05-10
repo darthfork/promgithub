@@ -32,11 +32,11 @@ Webhook requests are acknowledged after signature validation, duplicate-delivery
 
 - Accepted events return `202 Accepted` and are processed by background workers.
 - Duplicate deliveries return `200 OK` and do not enqueue duplicate work.
-- If the queue is full, the request returns `503 Service Unavailable` and increments `promgithub_event_dropped_total{reason="queue_full"}`.
+- If the queue is full, the request returns `503 Service Unavailable` and increments `promgithub_event_queue_dropped_total{event_type="<event>"}`.
 - Processing panics are recovered, logged, and exposed via `promgithub_event_processing_failures_total`; workers continue handling later events.
 - On graceful termination, the processor stops accepting new events and drains accepted in-flight/queued events before exit.
 
-Watch `promgithub_event_queue_depth`, `promgithub_event_queue_capacity`, `promgithub_event_worker_count`, `promgithub_event_processed_total`, `promgithub_event_dropped_total`, and `promgithub_event_processing_failures_total` to tune worker and queue settings.
+Watch `promgithub_event_queue_depth`, `promgithub_event_queue_capacity`, `promgithub_event_worker_count`, `promgithub_event_processed_total`, `promgithub_event_queue_dropped_total`, `promgithub_event_unsupported_total`, and `promgithub_event_processing_failures_total` to tune worker and queue settings.
 
 ## Running the service
 

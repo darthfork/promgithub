@@ -13,7 +13,8 @@ import (
 
 func TestAsyncProcessorEnqueueAndProcess(t *testing.T) {
 	asyncProcessedEventsCounter.Reset()
-	asyncEventsDroppedCounter.Reset()
+	asyncQueueDroppedCounter.Reset()
+	asyncUnsupportedEventsCounter.Reset()
 	asyncProcessingFailuresCounter.Reset()
 	asyncQueueDepthGauge.Set(0)
 	asyncQueueCapacityGauge.Set(0)
@@ -51,7 +52,7 @@ func TestAsyncProcessorEnqueueAndProcess(t *testing.T) {
 }
 
 func TestAsyncProcessorDropsWhenQueueFull(t *testing.T) {
-	asyncEventsDroppedCounter.Reset()
+	asyncQueueDroppedCounter.Reset()
 	asyncQueueDepthGauge.Set(0)
 
 	blocker := make(chan struct{})
@@ -72,7 +73,7 @@ func TestAsyncProcessorDropsWhenQueueFull(t *testing.T) {
 		t.Fatal("expected queue full error")
 	}
 
-	if got := testutil.ToFloat64(asyncEventsDroppedCounter.WithLabelValues("workflow_run", "queue_full")); got != 1 {
+	if got := testutil.ToFloat64(asyncQueueDroppedCounter.WithLabelValues("workflow_run")); got != 1 {
 		t.Fatalf("expected dropped counter to be 1, got %v", got)
 	}
 }

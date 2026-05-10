@@ -135,12 +135,20 @@ var (
 		[]string{"event_type"},
 	)
 
-	asyncEventsDroppedCounter = promauto.NewCounterVec(
+	asyncQueueDroppedCounter = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "promgithub_event_dropped_total",
-			Help: "Total number of webhook events dropped before processing",
+			Name: "promgithub_event_queue_dropped_total",
+			Help: "Total number of webhook events dropped because the async processing queue was full",
 		},
-		[]string{"event_type", "reason"},
+		[]string{"event_type"},
+	)
+
+	asyncUnsupportedEventsCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "promgithub_event_unsupported_total",
+			Help: "Total number of unsupported webhook events received by the async processor",
+		},
+		[]string{"event_type"},
 	)
 
 	asyncProcessingFailuresCounter = promauto.NewCounterVec(

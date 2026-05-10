@@ -122,9 +122,12 @@ func TestIntegrationWebhookUnsupportedEvent(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusAccepted, resp.StatusCode)
 	}
 
-	metrics := mustFetchMetrics(t, server.URL)
+	metrics := waitForMetricsSubstring(t, server.URL, `promgithub_event_unsupported_total{event_type="unknown_event"} 1`)
 	if strings.Contains(metrics, `promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1`) {
 		t.Fatalf("unsupported event unexpectedly updated workflow metrics:\n%s", metrics)
+	}
+	if !strings.Contains(metrics, `promgithub_event_unsupported_total{event_type="unknown_event"} 1`) {
+		t.Fatalf("expected unsupported event metric, got:\n%s", metrics)
 	}
 }
 
@@ -185,7 +188,7 @@ func TestIntegrationDuplicateDeliveryDoesNotInflateMetrics(t *testing.T) {
 	}
 }
 
-func TestIntegrationAsyncQueueFullReturnsUnavailableAndExposesDropMetrics(t *testing.T) {
+func TestIntegrationAsyncQueueFullReturnsUnavailableAndExposesQueueDropMetrics(t *testing.T) {
 	server := newIntegrationTestServerWithAsyncConfig(t, asyncProcessorConfig{WorkerCount: 1, QueueSize: 1})
 	defer server.Close()
 
@@ -223,8 +226,8 @@ func TestIntegrationAsyncQueueFullReturnsUnavailableAndExposesDropMetrics(t *tes
 	third := sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-queue-full-3")
 	assertResponseStatus(t, third, http.StatusServiceUnavailable)
 
-	metrics := waitForMetricsSubstring(t, server.URL, `promgithub_event_dropped_total{event_type="workflow_run",reason="queue_full"} 1`)
-	if !strings.Contains(metrics, `promgithub_event_dropped_total{event_type="workflow_run",reason="queue_full"} 1`) {
+	metrics := waitForMetricsSubstring(t, server.URL, `promgithub_event_queue_dropped_total{event_type="workflow_run"} 1`)
+	if !strings.Contains(metrics, `promgithub_event_queue_dropped_total{event_type="workflow_run"} 1`) {
 		t.Fatalf("expected queue-full drop metric, got:\n%s", metrics)
 	}
 }
@@ -355,7 +358,8 @@ func resetIntegrationTestMetrics() {
 	commitPushedCounter.Reset()
 	pullRequestCounter.Reset()
 	asyncProcessedEventsCounter.Reset()
-	asyncEventsDroppedCounter.Reset()
+	asyncQueueDroppedCounter.Reset()
+	asyncUnsupportedEventsCounter.Reset()
 	asyncProcessingFailuresCounter.Reset()
 	asyncProcessingDurationHistogram.Reset()
 	duplicateDeliveriesSeenCounter.Reset()
