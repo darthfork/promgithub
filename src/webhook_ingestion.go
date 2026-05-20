@@ -42,6 +42,13 @@ type webhookIngestionMetrics interface {
 	RecordDuplicateDelivery(eventType string)
 }
 
+const (
+	githubEventWorkflowRun = "workflow_run"
+	githubEventWorkflowJob = "workflow_job"
+	githubEventPush        = "push"
+	githubEventPullRequest = "pull_request"
+)
+
 type webhookIngestion struct {
 	secret        []byte
 	logger        *zap.Logger
@@ -118,7 +125,8 @@ func (i *webhookIngestion) markDuplicateDelivery(ctx context.Context, eventType,
 		return false, nil
 	}
 
-	if i.deliveryStore != nil {
+	switch {
+	case i.deliveryStore != nil:
 		processed, err := i.deliveryStore.MarkDeliveryProcessed(ctx, deliveryID)
 		if err != nil {
 			return false, err
@@ -126,7 +134,7 @@ func (i *webhookIngestion) markDuplicateDelivery(ctx context.Context, eventType,
 		if processed {
 			return false, nil
 		}
-	} else if i.localDeduper != nil {
+	case i.localDeduper != nil:
 		now := time.Now
 		if i.now != nil {
 			now = i.now
@@ -134,7 +142,7 @@ func (i *webhookIngestion) markDuplicateDelivery(ctx context.Context, eventType,
 		if !i.localDeduper.SeenBefore(deliveryID, now()) {
 			return false, nil
 		}
-	} else {
+	default:
 		return false, nil
 	}
 
@@ -167,13 +175,13 @@ type defaultWebhookEventDispatcher struct{}
 
 func (defaultWebhookEventDispatcher) Dispatch(ctx context.Context, eventType string, body []byte) bool {
 	switch eventType {
-	case "workflow_run":
+	case githubEventWorkflowRun:
 		updateWorkflowMetrics(ctx, body)
-	case "workflow_job":
+	case githubEventWorkflowJob:
 		updateJobMetrics(ctx, body)
-	case "push":
+	case githubEventPush:
 		updateCommitMetrics(body)
-	case "pull_request":
+	case githubEventPullRequest:
 		updatePullRequestMetrics(body)
 	default:
 		return false

@@ -48,7 +48,7 @@ func (f *fakeWebhookDispatcher) Dispatch(_ context.Context, eventType string, bo
 		EventType: eventType,
 		Body:      append([]byte(nil), body...),
 	})
-	return eventType == "workflow_run"
+	return eventType == githubEventWorkflowRun
 }
 
 type fakeWebhookMetrics struct {
@@ -59,12 +59,12 @@ func (f *fakeWebhookMetrics) RecordDuplicateDelivery(eventType string) {
 	f.duplicates = append(f.duplicates, eventType)
 }
 
-func signedWebhookRequest(body []byte, eventType, deliveryID string) webhookIngestionRequest {
+func signedWorkflowRunWebhookRequest(body []byte) webhookIngestionRequest {
 	return webhookIngestionRequest{
 		Body:       body,
 		Signature:  computeHMAC(body, []byte("test-secret")),
-		EventType:  eventType,
-		DeliveryID: deliveryID,
+		EventType:  githubEventWorkflowRun,
+		DeliveryID: "delivery-1",
 	}
 }
 
@@ -88,7 +88,7 @@ func TestWebhookIngestionRejectsInvalidSignature(t *testing.T) {
 	result := ingestion.Accept(context.Background(), webhookIngestionRequest{
 		Body:       []byte(`{"ok":true}`),
 		Signature:  "sha256=bad",
-		EventType:  "workflow_run",
+		EventType:  githubEventWorkflowRun,
 		DeliveryID: "delivery-1",
 	})
 
@@ -107,7 +107,7 @@ func TestWebhookIngestionDropsDuplicateBeforeDispatch(t *testing.T) {
 	ingestion, delivery, dispatcher, metrics := newTestWebhookIngestion()
 	delivery.created = false
 
-	result := ingestion.Accept(context.Background(), signedWebhookRequest([]byte(`{"ok":true}`), "workflow_run", "delivery-1"))
+	result := ingestion.Accept(context.Background(), signedWorkflowRunWebhookRequest([]byte(`{"ok":true}`)))
 
 	if result.StatusCode != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, result.StatusCode)
@@ -115,7 +115,7 @@ func TestWebhookIngestionDropsDuplicateBeforeDispatch(t *testing.T) {
 	if len(dispatcher.events) != 0 {
 		t.Fatalf("expected no dispatch calls, got %d", len(dispatcher.events))
 	}
-	if got := metrics.duplicates; len(got) != 1 || got[0] != "workflow_run" {
+	if got := metrics.duplicates; len(got) != 1 || got[0] != githubEventWorkflowRun {
 		t.Fatalf("expected duplicate metric for workflow_run, got %#v", got)
 	}
 }
@@ -124,7 +124,7 @@ func TestWebhookIngestionReturnsServerErrorWhenDeliveryRecordingFails(t *testing
 	ingestion, delivery, dispatcher, _ := newTestWebhookIngestion()
 	delivery.err = errors.New("redis unavailable")
 
-	result := ingestion.Accept(context.Background(), signedWebhookRequest([]byte(`{"ok":true}`), "workflow_run", "delivery-1"))
+	result := ingestion.Accept(context.Background(), signedWorkflowRunWebhookRequest([]byte(`{"ok":true}`)))
 
 	if result.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, result.StatusCode)
@@ -138,7 +138,7 @@ func TestWebhookIngestionDispatchesSynchronouslyWithoutQueue(t *testing.T) {
 	ingestion, _, dispatcher, _ := newTestWebhookIngestion()
 	body := []byte(`{"ok":true}`)
 
-	result := ingestion.Accept(context.Background(), signedWebhookRequest(body, "workflow_run", "delivery-1"))
+	result := ingestion.Accept(context.Background(), signedWorkflowRunWebhookRequest(body))
 
 	if result.StatusCode != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, result.StatusCode)
@@ -146,7 +146,7 @@ func TestWebhookIngestionDispatchesSynchronouslyWithoutQueue(t *testing.T) {
 	if len(dispatcher.events) != 1 {
 		t.Fatalf("expected one dispatch call, got %d", len(dispatcher.events))
 	}
-	if dispatcher.events[0].EventType != "workflow_run" || !bytes.Equal(dispatcher.events[0].Body, body) {
+	if dispatcher.events[0].EventType != githubEventWorkflowRun || !bytes.Equal(dispatcher.events[0].Body, body) {
 		t.Fatalf("unexpected dispatched event: %#v", dispatcher.events[0])
 	}
 }
@@ -157,7 +157,7 @@ func TestWebhookIngestionEnqueuesAcceptedEvent(t *testing.T) {
 	ingestion.queue = queue
 	body := []byte(`{"ok":true}`)
 
-	result := ingestion.Accept(context.Background(), signedWebhookRequest(body, "workflow_run", "delivery-1"))
+	result := ingestion.Accept(context.Background(), signedWorkflowRunWebhookRequest(body))
 
 	if result.StatusCode != http.StatusAccepted {
 		t.Fatalf("expected status %d, got %d", http.StatusAccepted, result.StatusCode)
@@ -174,7 +174,7 @@ func TestWebhookIngestionReturnsUnavailableWhenQueueIsFull(t *testing.T) {
 	ingestion, _, dispatcher, _ := newTestWebhookIngestion()
 	ingestion.queue = &fakeWebhookQueue{err: errors.New("queue full")}
 
-	result := ingestion.Accept(context.Background(), signedWebhookRequest([]byte(`{"ok":true}`), "workflow_run", "delivery-1"))
+	result := ingestion.Accept(context.Background(), signedWorkflowRunWebhookRequest([]byte(`{"ok":true}`)))
 
 	if result.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, result.StatusCode)
@@ -203,7 +203,7 @@ func TestWebhookHTTPHandlerAdaptsHeadersAndBody(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(body))
 	req.Header.Set("X-Hub-Signature-256", "sha256=test")
-	req.Header.Set("X-GitHub-Event", "workflow_run")
+	req.Header.Set("X-GitHub-Event", githubEventWorkflowRun)
 	req.Header.Set("X-GitHub-Delivery", "delivery-1")
 	recorder := httptest.NewRecorder()
 
@@ -215,7 +215,7 @@ func TestWebhookHTTPHandlerAdaptsHeadersAndBody(t *testing.T) {
 	if acceptor.request.Signature != "sha256=test" {
 		t.Fatalf("unexpected signature %q", acceptor.request.Signature)
 	}
-	if acceptor.request.EventType != "workflow_run" {
+	if acceptor.request.EventType != githubEventWorkflowRun {
 		t.Fatalf("unexpected event type %q", acceptor.request.EventType)
 	}
 	if acceptor.request.DeliveryID != "delivery-1" {
