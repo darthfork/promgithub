@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -127,81 +126,7 @@ func validateHMAC(body []byte, signature string, secret []byte) bool {
 var deliveryDeduperCache = newDeliveryDeduper(defaultDeliveryRetention, defaultDeliveryCacheEntries)
 
 func githubEventsHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Unable to read request body", http.StatusInternalServerError)
-		logger.Error("Unable to read request body", zap.Error(err))
-		return
-	}
-
-	signature := r.Header.Get("X-Hub-Signature-256")
-	if !validateHMAC(body, signature, githubWebhookSecret) {
-		http.Error(w, "Invalid signature", http.StatusUnauthorized)
-		logger.Error("Invalid signature")
-		return
-	}
-
-	ctx := r.Context()
-	eventType := r.Header.Get("X-GitHub-Event")
-	deliveryID := strings.TrimSpace(r.Header.Get("X-GitHub-Delivery"))
-	duplicate, duplicateErr := markDuplicateDelivery(ctx, eventType, deliveryID)
-	if duplicateErr != nil {
-		http.Error(w, "Unable to record webhook delivery", http.StatusInternalServerError)
-		logger.Error("Unable to record webhook delivery", zap.String("deliveryID", deliveryID), zap.Error(duplicateErr))
-		return
-	}
-	if duplicate {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	if eventProcessor != nil {
-		if err := eventProcessor.Enqueue(ctx, eventType, body); err != nil {
-			http.Error(w, "Webhook queue is full", http.StatusServiceUnavailable)
-			logger.Warn("Dropping webhook event because queue is full", zap.String("eventType", eventType), zap.Error(err))
-			return
-		}
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-
-	switch eventType {
-	case "workflow_run":
-		updateWorkflowMetrics(ctx, body)
-	case "workflow_job":
-		updateJobMetrics(ctx, body)
-	case "push":
-		updateCommitMetrics(body)
-	case "pull_request":
-		updatePullRequestMetrics(body)
-	default:
-		logger.Warn("Invalid GitHub event type", zap.String("eventType", eventType))
-	}
-
-	w.WriteHeader(http.StatusOK)
-}
-
-func markDuplicateDelivery(ctx context.Context, eventType, deliveryID string) (bool, error) {
-	if deliveryID == "" {
-		return false, nil
-	}
-
-	if stateStore != nil {
-		processed, err := stateStore.MarkDeliveryProcessed(ctx, deliveryID)
-		if err != nil {
-			return false, err
-		}
-		if processed {
-			return false, nil
-		}
-	} else if !deliveryDeduperCache.SeenBefore(deliveryID, time.Now()) {
-		return false, nil
-	}
-
-	duplicateDeliveriesSeenCounter.WithLabelValues(eventType).Inc()
-	duplicateDeliveriesDroppedCounter.WithLabelValues(eventType).Inc()
-	logger.Info("Skipping duplicate GitHub delivery", zap.String("deliveryID", deliveryID), zap.String("eventType", eventType))
-	return true, nil
+	webhookHTTPHandler(newDefaultWebhookIngestion(), logger).ServeHTTP(w, r)
 }
 
 func normalizeRunState(details runMetricDetails) RunState {
