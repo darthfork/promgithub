@@ -67,7 +67,7 @@ func newDefaultWebhookIngestion() *webhookIngestion {
 		deliveryStore: stateStore,
 		localDeduper:  deliveryDeduperCache,
 		dispatcher:    defaultWebhookEventDispatcher{},
-		metrics:       prometheusWebhookIngestionMetrics{},
+		metrics:       defaultMetricRecorder,
 		now:           time.Now,
 	}
 	if eventProcessor != nil {
@@ -188,13 +188,6 @@ func (defaultWebhookEventDispatcher) Dispatch(ctx context.Context, eventType str
 	}
 
 	return true
-}
-
-type prometheusWebhookIngestionMetrics struct{}
-
-func (prometheusWebhookIngestionMetrics) RecordDuplicateDelivery(eventType string) {
-	duplicateDeliveriesSeenCounter.WithLabelValues(eventType).Inc()
-	duplicateDeliveriesDroppedCounter.WithLabelValues(eventType).Inc()
 }
 
 func webhookHTTPHandler(acceptor webhookAcceptor, logger *zap.Logger) http.HandlerFunc {

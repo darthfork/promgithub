@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -15,14 +14,6 @@ type runMetricDetails struct {
 	conclusion string
 	startedAt  string
 	endedAt    string
-}
-
-type runMetricSet struct {
-	statusCounter     *prometheus.CounterVec
-	queuedGauge       *prometheus.GaugeVec
-	inProgressGauge   *prometheus.GaugeVec
-	completedGauge    *prometheus.GaugeVec
-	durationHistogram *prometheus.HistogramVec
 }
 
 type runStoreMethods struct {
@@ -39,6 +30,12 @@ type runTransitionRecorder interface {
 	RecordStatus(RunState)
 	AddGauge(RunState, float64)
 	ObserveDuration(RunState, float64)
+}
+
+type runMetricRecorder interface {
+	RecordRunStatus(runMetricKind, RunState)
+	AddRunGauge(runMetricKind, RunState, float64)
+	ObserveRunDuration(runMetricKind, RunState, float64)
 }
 
 type runTransitionResult struct {
@@ -151,37 +148,19 @@ func (a runStoreAdapter) UpdateRunState(ctx context.Context, id int, state RunSt
 	return a.methods.update(ctx, id, state)
 }
 
-type prometheusRunTransitionRecorder struct {
-	metrics runMetricSet
+type metricRunTransitionRecorder struct {
+	kind     runMetricKind
+	recorder runMetricRecorder
 }
 
-func (r prometheusRunTransitionRecorder) RecordStatus(state RunState) {
-	r.metrics.statusCounter.WithLabelValues(
-		state.Repository,
-		state.Branch,
-		state.Name,
-		state.Status,
-		state.Conclusion,
-	).Inc()
+func (r metricRunTransitionRecorder) RecordStatus(state RunState) {
+	r.recorder.RecordRunStatus(r.kind, state)
 }
 
-func (r prometheusRunTransitionRecorder) AddGauge(state RunState, delta float64) {
-	switch normalizeStatus(state.Status) {
-	case statusQueued:
-		r.metrics.queuedGauge.WithLabelValues(state.Repository, state.Branch, state.Name).Add(delta)
-	case statusInProgress:
-		r.metrics.inProgressGauge.WithLabelValues(state.Repository, state.Branch, state.Name).Add(delta)
-	case statusCompleted:
-		r.metrics.completedGauge.WithLabelValues(state.Repository, state.Branch, state.Conclusion, state.Name).Add(delta)
-	}
+func (r metricRunTransitionRecorder) AddGauge(state RunState, delta float64) {
+	r.recorder.AddRunGauge(r.kind, state, delta)
 }
 
-func (r prometheusRunTransitionRecorder) ObserveDuration(state RunState, durationSeconds float64) {
-	r.metrics.durationHistogram.WithLabelValues(
-		state.Repository,
-		state.Branch,
-		state.Name,
-		state.Status,
-		state.Conclusion,
-	).Observe(durationSeconds)
+func (r metricRunTransitionRecorder) ObserveDuration(state RunState, durationSeconds float64) {
+	r.recorder.ObserveRunDuration(r.kind, state, durationSeconds)
 }
