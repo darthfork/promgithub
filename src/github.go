@@ -184,7 +184,7 @@ func updateTrackedRunMetrics(
 	details runMetricDetails,
 	store runStoreMethods,
 	entityName string,
-	metrics runMetricSet,
+	metricKind runMetricKind,
 ) {
 	var storeAdapter runTransitionStore
 	if stateStore != nil {
@@ -193,7 +193,7 @@ func updateTrackedRunMetrics(
 
 	processor := &runTransitionProcessor{
 		store:      storeAdapter,
-		recorder:   prometheusRunTransitionRecorder{metrics: metrics},
+		recorder:   metricRunTransitionRecorder{kind: metricKind, recorder: defaultMetricRecorder},
 		logger:     logger,
 		entityName: entityName,
 	}
@@ -243,14 +243,8 @@ func updateWorkflowMetrics(ctx context.Context, body []byte) {
 			endedAt:    payload.Workflow.UpdatedAt,
 		},
 		workflowRunStoreMethods(),
-		"workflow_run",
-		runMetricSet{
-			statusCounter:     workflowStatusCounter,
-			queuedGauge:       workflowQueuedGauge,
-			inProgressGauge:   workflowInProgressGauge,
-			completedGauge:    workflowCompletedGauge,
-			durationHistogram: workflowDurationHistogram,
-		},
+		githubEventWorkflowRun,
+		runMetricKindWorkflow,
 	)
 }
 
@@ -275,14 +269,8 @@ func updateJobMetrics(ctx context.Context, body []byte) {
 			endedAt:    payload.Job.CompletedAt,
 		},
 		workflowJobStoreMethods(),
-		"workflow_job",
-		runMetricSet{
-			statusCounter:     jobStatusCounter,
-			queuedGauge:       jobQueuedGauge,
-			inProgressGauge:   jobInProgressGauge,
-			completedGauge:    jobCompletedGauge,
-			durationHistogram: jobDurationHistogram,
-		},
+		githubEventWorkflowJob,
+		runMetricKindJob,
 	)
 }
 
@@ -295,7 +283,7 @@ func updateCommitMetrics(body []byte) {
 	}
 
 	for range payload.Commits {
-		commitPushedCounter.WithLabelValues(payload.Repository.FullName).Inc()
+		defaultMetricRecorder.RecordCommitPushed(payload.Repository.FullName)
 	}
 }
 
@@ -307,9 +295,9 @@ func updatePullRequestMetrics(body []byte) {
 		return
 	}
 
-	pullRequestCounter.WithLabelValues(
+	defaultMetricRecorder.RecordPullRequest(
 		payload.Repository.FullName,
 		payload.PullRequest.Base.Ref,
 		payload.Action,
-	).Inc()
+	)
 }

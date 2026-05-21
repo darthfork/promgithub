@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -70,8 +69,8 @@ func newAsyncEventProcessor(cfg asyncProcessorConfig, logger *zap.Logger) *async
 		logger: logger,
 	}
 
-	asyncWorkerCountGauge.Set(float64(cfg.WorkerCount))
-	asyncQueueCapacityGauge.Set(float64(cfg.QueueSize))
+	defaultMetricRecorder.SetAsyncWorkerCount(cfg.WorkerCount)
+	defaultMetricRecorder.SetAsyncQueueCapacity(cfg.QueueSize)
 	return processor
 }
 
@@ -99,11 +98,11 @@ func (p *asyncEventProcessor) Enqueue(ctx context.Context, eventType string, bod
 
 	select {
 	case p.queue <- event:
-		asyncQueueDepthGauge.Set(float64(len(p.queue)))
+		defaultMetricRecorder.SetAsyncQueueDepth(len(p.queue))
 		return nil
 	default:
-		asyncQueueDroppedCounter.WithLabelValues(eventType).Inc()
-		asyncQueueDepthGauge.Set(float64(len(p.queue)))
+		defaultMetricRecorder.RecordAsyncQueueDropped(eventType)
+		defaultMetricRecorder.SetAsyncQueueDepth(len(p.queue))
 		return fmt.Errorf("event queue is full")
 	}
 }
@@ -112,19 +111,19 @@ func (p *asyncEventProcessor) runWorker(workerID int) {
 	defer p.wg.Done()
 
 	for event := range p.queue {
-		asyncQueueDepthGauge.Set(float64(len(p.queue)))
+		defaultMetricRecorder.SetAsyncQueueDepth(len(p.queue))
 		start := time.Now()
 
 		processor, ok := p.processFn[event.eventType]
 		if !ok {
-			asyncUnsupportedEventsCounter.WithLabelValues(event.eventType).Inc()
+			defaultMetricRecorder.RecordAsyncUnsupportedEvent(event.eventType)
 			continue
 		}
 
 		func() {
 			defer func() {
 				if recovered := recover(); recovered != nil {
-					asyncProcessingFailuresCounter.WithLabelValues(event.eventType).Inc()
+					defaultMetricRecorder.RecordAsyncProcessingFailure(event.eventType)
 					p.logger.Error("Recovered from async event processor panic",
 						zap.Int("workerID", workerID),
 						zap.String("eventType", event.eventType),
@@ -134,8 +133,8 @@ func (p *asyncEventProcessor) runWorker(workerID int) {
 			}()
 
 			processor(event.ctx, event.body)
-			asyncProcessedEventsCounter.WithLabelValues(event.eventType).Inc()
-			asyncProcessingDurationHistogram.With(prometheus.Labels{"event_type": event.eventType}).Observe(time.Since(start).Seconds())
+			defaultMetricRecorder.RecordAsyncProcessedEvent(event.eventType)
+			defaultMetricRecorder.ObserveAsyncProcessingDuration(event.eventType, time.Since(start).Seconds())
 		}()
 	}
 }
