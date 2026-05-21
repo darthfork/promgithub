@@ -2,6 +2,8 @@ package main
 
 import "context"
 
+const testConclusionSuccess = "success"
+
 type inMemoryStateStore struct {
 	deliveries map[string]struct{}
 	workflow   map[int]RunState

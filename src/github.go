@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -80,29 +79,6 @@ type GithubPullRequest struct {
 		} `json:"user"`
 	} `json:"pull_request"`
 	Repository GithubRepo `json:"repository"`
-}
-
-type runMetricDetails struct {
-	repository string
-	branch     string
-	name       string
-	status     string
-	conclusion string
-	startedAt  string
-	endedAt    string
-}
-
-type runMetricSet struct {
-	statusCounter     *prometheus.CounterVec
-	queuedGauge       *prometheus.GaugeVec
-	inProgressGauge   *prometheus.GaugeVec
-	completedGauge    *prometheus.GaugeVec
-	durationHistogram *prometheus.HistogramVec
-}
-
-type runStoreMethods struct {
-	get    func(context.Context, int) (RunState, bool, error)
-	update func(context.Context, int, RunState) error
 }
 
 const (
@@ -202,86 +178,6 @@ func shouldApplyStateTransition(previous, next RunState) bool {
 	return true
 }
 
-func applyGaugeDelta(details RunState, delta float64, queuedGauge, inProgressGauge, completedGauge *prometheus.GaugeVec) {
-	switch normalizeStatus(details.Status) {
-	case statusQueued:
-		queuedGauge.WithLabelValues(details.Repository, details.Branch, details.Name).Add(delta)
-	case statusInProgress:
-		inProgressGauge.WithLabelValues(details.Repository, details.Branch, details.Name).Add(delta)
-	case statusCompleted:
-		completedGauge.WithLabelValues(details.Repository, details.Branch, details.Conclusion, details.Name).Add(delta)
-	}
-}
-
-func observeDuration(details RunState, durationHistogram *prometheus.HistogramVec) {
-	if normalizeStatus(details.Status) != statusCompleted {
-		return
-	}
-
-	startedAt, startedOK := parseMetricTime(details.StartedAt)
-	endedAt, endedOK := parseMetricTime(details.EndedAt)
-	if !startedOK || !endedOK || endedAt.Before(startedAt) {
-		return
-	}
-
-	durationHistogram.WithLabelValues(
-		details.Repository,
-		details.Branch,
-		details.Name,
-		details.Status,
-		details.Conclusion,
-	).Observe(endedAt.Sub(startedAt).Seconds())
-}
-
-func applyStatefulMetrics(details RunState, previous *RunState, metrics runMetricSet) {
-	metrics.statusCounter.WithLabelValues(
-		details.Repository,
-		details.Branch,
-		details.Name,
-		details.Status,
-		details.Conclusion,
-	).Inc()
-
-	if previous != nil {
-		applyGaugeDelta(*previous, -1, metrics.queuedGauge, metrics.inProgressGauge, metrics.completedGauge)
-	}
-	applyGaugeDelta(details, 1, metrics.queuedGauge, metrics.inProgressGauge, metrics.completedGauge)
-
-	if previous == nil || normalizeStatus(previous.Status) != statusCompleted {
-		observeDuration(details, metrics.durationHistogram)
-	}
-}
-
-func getPreviousState(ctx context.Context, id int, getFn func(context.Context, int) (RunState, bool, error), entityName string) (*RunState, bool) {
-	if stateStore == nil {
-		return nil, true
-	}
-
-	previous, found, err := getFn(ctx, id)
-	if err != nil {
-		logger.Error("Failed to load run state from redis", zap.String("entity", entityName), zap.Int("id", id), zap.Error(err))
-		return nil, false
-	}
-	if !found {
-		return nil, true
-	}
-
-	return &previous, true
-}
-
-func persistRunState(ctx context.Context, id int, next RunState, updateFn func(context.Context, int, RunState) error, entityName string) bool {
-	if stateStore == nil {
-		return true
-	}
-
-	if err := updateFn(ctx, id, next); err != nil {
-		logger.Error("Failed to update run state in redis", zap.String("entity", entityName), zap.Int("id", id), zap.Error(err))
-		return false
-	}
-
-	return true
-}
-
 func updateTrackedRunMetrics(
 	ctx context.Context,
 	id int,
@@ -290,26 +186,18 @@ func updateTrackedRunMetrics(
 	entityName string,
 	metrics runMetricSet,
 ) {
-	nextState := normalizeRunState(details)
-
-	if stateStore == nil {
-		applyStatefulMetrics(nextState, nil, metrics)
-		return
+	var storeAdapter runTransitionStore
+	if stateStore != nil {
+		storeAdapter = runStoreAdapter{methods: store}
 	}
 
-	previousState, ok := getPreviousState(ctx, id, store.get, entityName)
-	if !ok {
-		return
+	processor := &runTransitionProcessor{
+		store:      storeAdapter,
+		recorder:   prometheusRunTransitionRecorder{metrics: metrics},
+		logger:     logger,
+		entityName: entityName,
 	}
-	if previousState != nil && !shouldApplyStateTransition(*previousState, nextState) {
-		logger.Debug("Skipping stale or duplicate run transition", zap.String("entity", entityName), zap.Int("id", id), zap.String("status", nextState.Status), zap.String("conclusion", nextState.Conclusion))
-		return
-	}
-	if !persistRunState(ctx, id, nextState, store.update, entityName) {
-		return
-	}
-
-	applyStatefulMetrics(nextState, previousState, metrics)
+	processor.Apply(ctx, id, details)
 }
 
 func workflowRunStoreMethods() runStoreMethods {
