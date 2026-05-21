@@ -354,7 +354,7 @@ func TestWorkflowGaugeTransitionIsIdempotent(t *testing.T) {
 	updateWorkflowMetrics(context.Background(), inProgressBody)
 
 	payload.Workflow.Status = statusCompleted
-	payload.Workflow.Conclusion = "success"
+	payload.Workflow.Conclusion = testConclusionSuccess
 	payload.Workflow.UpdatedAt = "2024-11-21T12:00:00Z"
 	completedBody, _ := json.Marshal(payload)
 	updateWorkflowMetrics(context.Background(), completedBody)
@@ -366,7 +366,7 @@ func TestWorkflowGaugeTransitionIsIdempotent(t *testing.T) {
 	if got := testutil.ToFloat64(workflowInProgressGauge.WithLabelValues("user/repo", "main", "CI")); got != 0 {
 		t.Fatalf("expected in progress gauge to be 0, got %v", got)
 	}
-	if got := testutil.ToFloat64(workflowCompletedGauge.WithLabelValues("user/repo", "main", "success", "CI")); got != 1 {
+	if got := testutil.ToFloat64(workflowCompletedGauge.WithLabelValues("user/repo", "main", testConclusionSuccess, "CI")); got != 1 {
 		t.Fatalf("expected completed gauge to be 1, got %v", got)
 	}
 }
@@ -401,7 +401,7 @@ func TestJobGaugeTransitionIsIdempotent(t *testing.T) {
 	updateJobMetrics(context.Background(), inProgressBody)
 
 	payload.Job.Status = statusCompleted
-	payload.Job.Conclusion = "success"
+	payload.Job.Conclusion = testConclusionSuccess
 	payload.Job.CompletedAt = "2024-11-21T12:00:00Z"
 	completedBody, _ := json.Marshal(payload)
 	updateJobMetrics(context.Background(), completedBody)
@@ -413,7 +413,7 @@ func TestJobGaugeTransitionIsIdempotent(t *testing.T) {
 	if got := testutil.ToFloat64(jobInProgressGauge.WithLabelValues("user/repo", "main", "CI")); got != 0 {
 		t.Fatalf("expected in progress gauge to be 0, got %v", got)
 	}
-	if got := testutil.ToFloat64(jobCompletedGauge.WithLabelValues("user/repo", "main", "success", "CI")); got != 1 {
+	if got := testutil.ToFloat64(jobCompletedGauge.WithLabelValues("user/repo", "main", testConclusionSuccess, "CI")); got != 1 {
 		t.Fatalf("expected completed gauge to be 1, got %v", got)
 	}
 }

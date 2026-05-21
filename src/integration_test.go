@@ -8,6 +8,8 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +22,11 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+)
+
+const (
+	integrationRunStartedAt   = "2023-01-01T00:00:00Z"
+	integrationRunCompletedAt = "2023-01-01T01:00:00Z"
 )
 
 func TestIntegrationWebhookMetrics(t *testing.T) {
@@ -188,6 +195,58 @@ func TestIntegrationDuplicateDeliveryDoesNotInflateMetrics(t *testing.T) {
 	}
 }
 
+func TestIntegrationDeliveryStoreFailurePreventsWebhookProcessing(t *testing.T) {
+	server := newIntegrationTestServerWithStateStore(t, asyncProcessorConfig{WorkerCount: 1, QueueSize: 8}, failingDeliveryStateStore{
+		inMemoryStateStore: newInMemoryStateStore(),
+	})
+	defer server.Close()
+
+	body := mustReadFixture(t, "workflow_run.json")
+	resp := sendWebhookRequest(t, server.URL, githubEventWorkflowRun, body, "delivery-store-failure")
+	assertResponseStatus(t, resp, http.StatusInternalServerError)
+
+	metrics := mustFetchMetrics(t, server.URL)
+	if strings.Contains(metrics, `promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1`) {
+		t.Fatalf("workflow metrics changed after delivery store failure:\n%s", metrics)
+	}
+	if strings.Contains(metrics, `promgithub_event_processed_total{event_type="workflow_run"}`) {
+		t.Fatalf("event was enqueued after delivery store failure:\n%s", metrics)
+	}
+}
+
+func TestIntegrationWorkflowRunLifecycleBalancesStatefulMetrics(t *testing.T) {
+	server := newIntegrationTestServer(t)
+	defer server.Close()
+
+	queuedBody := workflowRunFixtureWithStatus(t, statusQueued, "", integrationRunStartedAt)
+	queuedResp := sendWebhookRequest(t, server.URL, githubEventWorkflowRun, queuedBody, "delivery-lifecycle-queued")
+	assertResponseStatus(t, queuedResp, http.StatusAccepted)
+	waitForMetricsSubstring(t, server.URL, `promgithub_workflow_queued{branch="main",repository="user/repo",workflow_name="CI"} 1`)
+
+	inProgressBody := workflowRunFixtureWithStatus(t, statusInProgress, "", integrationRunStartedAt)
+	inProgressResp := sendWebhookRequest(t, server.URL, githubEventWorkflowRun, inProgressBody, "delivery-lifecycle-in-progress")
+	assertResponseStatus(t, inProgressResp, http.StatusAccepted)
+	waitForMetricsSubstring(t, server.URL, `promgithub_workflow_in_progress{branch="main",repository="user/repo",workflow_name="CI"} 1`)
+
+	completedBody := workflowRunFixtureWithStatus(t, statusCompleted, testConclusionSuccess, integrationRunCompletedAt)
+	completedResp := sendWebhookRequest(t, server.URL, githubEventWorkflowRun, completedBody, "delivery-lifecycle-completed")
+	assertResponseStatus(t, completedResp, http.StatusAccepted)
+
+	metrics := waitForMetricsSubstring(t, server.URL, `promgithub_workflow_completed{branch="main",repository="user/repo",workflow_conclusion="success",workflow_name="CI"} 1`)
+	expectedMetrics := []string{
+		`promgithub_workflow_queued{branch="main",repository="user/repo",workflow_name="CI"} 0`,
+		`promgithub_workflow_in_progress{branch="main",repository="user/repo",workflow_name="CI"} 0`,
+		`promgithub_workflow_completed{branch="main",repository="user/repo",workflow_conclusion="success",workflow_name="CI"} 1`,
+		`promgithub_workflow_duration_sum{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 3600`,
+		`promgithub_workflow_duration_count{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1`,
+	}
+	for _, expected := range expectedMetrics {
+		if !strings.Contains(metrics, expected) {
+			t.Fatalf("expected metrics to contain %q, got:\n%s", expected, metrics)
+		}
+	}
+}
+
 func TestIntegrationAsyncQueueFullReturnsUnavailableAndExposesQueueDropMetrics(t *testing.T) {
 	server := newIntegrationTestServerWithAsyncConfig(t, asyncProcessorConfig{WorkerCount: 1, QueueSize: 1})
 	defer server.Close()
@@ -316,10 +375,15 @@ func newIntegrationTestServer(t *testing.T) *httptest.Server {
 
 func newIntegrationTestServerWithAsyncConfig(t *testing.T, cfg asyncProcessorConfig) *httptest.Server {
 	t.Helper()
+	return newIntegrationTestServerWithStateStore(t, cfg, newInMemoryStateStore())
+}
+
+func newIntegrationTestServerWithStateStore(t *testing.T, cfg asyncProcessorConfig, store StateStore) *httptest.Server {
+	t.Helper()
 	resetIntegrationTestMetrics()
 
 	githubWebhookSecret = []byte("integration-test-secret")
-	stateStore = newInMemoryStateStore()
+	stateStore = store
 	eventProcessor = newAsyncEventProcessor(cfg, zap.NewNop())
 	eventProcessor.Start()
 	t.Cleanup(func() {
@@ -332,6 +396,14 @@ func newIntegrationTestServerWithAsyncConfig(t *testing.T, cfg asyncProcessorCon
 
 	router := setupRouter(zap.NewNop(), defaultServiceMetrics, prometheus.DefaultGatherer)
 	return httptest.NewServer(router)
+}
+
+type failingDeliveryStateStore struct {
+	*inMemoryStateStore
+}
+
+func (s failingDeliveryStateStore) MarkDeliveryProcessed(context.Context, string) (bool, error) {
+	return false, errors.New("delivery store unavailable")
 }
 
 func assertResponseStatus(t *testing.T, resp *http.Response, expectedStatus int) {
@@ -386,6 +458,24 @@ func mustReadFixture(t *testing.T, name string) []byte {
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read fixture %s: %v", path, err)
+	}
+	return body
+}
+
+func workflowRunFixtureWithStatus(t *testing.T, status, conclusion, updatedAt string) []byte {
+	t.Helper()
+
+	var payload GithubWorkflow
+	if err := json.Unmarshal(mustReadFixture(t, "workflow_run.json"), &payload); err != nil {
+		t.Fatalf("failed to unmarshal workflow fixture: %v", err)
+	}
+	payload.Workflow.Status = status
+	payload.Workflow.Conclusion = conclusion
+	payload.Workflow.UpdatedAt = updatedAt
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("failed to marshal workflow fixture: %v", err)
 	}
 	return body
 }
