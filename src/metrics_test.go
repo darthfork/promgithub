@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
+// These stores are intentionally parallel so each test satisfies only the run-state interface it exercises.
 type workflowRunOnlyTestStore struct {
 	state   RunState
 	found   bool
@@ -61,7 +62,11 @@ func TestWorkflowMetricsUseWorkflowRunStateWithoutDeliveryState(t *testing.T) {
 	workflowCompletedGauge.Reset()
 	workflowDurationHistogram.Reset()
 
-	updateWorkflowMetrics(context.Background(), readMetricFixture(t, "workflow_run.json"))
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+	updateWorkflowMetrics(context.Background(), body)
 
 	assertCompletedStateUpdate(t, "workflow run", store.updates)
 }
@@ -76,30 +81,13 @@ func TestJobMetricsUseWorkflowJobStateWithoutDeliveryOrRunState(t *testing.T) {
 	jobCompletedGauge.Reset()
 	jobDurationHistogram.Reset()
 
-	updateJobMetrics(context.Background(), readMetricFixture(t, "workflow_job.json"))
-
-	assertCompletedStateUpdate(t, "workflow job", store.updates)
-}
-
-func readMetricFixture(t *testing.T, name string) []byte {
-	t.Helper()
-
-	var (
-		body []byte
-		err  error
-	)
-	switch name {
-	case "workflow_run.json":
-		body, err = os.ReadFile("../test_data/workflow_run.json")
-	case "workflow_job.json":
-		body, err = os.ReadFile("../test_data/workflow_job.json")
-	default:
-		t.Fatalf("unknown metric fixture %q", name)
-	}
+	body, err := os.ReadFile("../test_data/workflow_job.json")
 	if err != nil {
 		t.Fatalf("Failed to read test data file: %v", err)
 	}
-	return body
+	updateJobMetrics(context.Background(), body)
+
+	assertCompletedStateUpdate(t, "workflow job", store.updates)
 }
 
 func assertCompletedStateUpdate(t *testing.T, entity string, updates []RunState) {

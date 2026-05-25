@@ -171,23 +171,15 @@ func TestWebhookIngestionEnqueuesAcceptedEvent(t *testing.T) {
 }
 
 func TestDefaultWebhookIngestionUsesDeliveryStateWithoutRunState(t *testing.T) {
-	oldDeliveryStore := deliveryStateStore
-	oldWorkflowRunStore := workflowRunStateStore
-	oldWorkflowJobStore := workflowJobStateStore
 	oldProcessor := eventProcessor
 	oldSecret := githubWebhookSecret
 	t.Cleanup(func() {
-		deliveryStateStore = oldDeliveryStore
-		workflowRunStateStore = oldWorkflowRunStore
-		workflowJobStateStore = oldWorkflowJobStore
 		eventProcessor = oldProcessor
 		githubWebhookSecret = oldSecret
 	})
 
 	delivery := &fakeDeliveryMarker{created: true}
-	deliveryStateStore = delivery
-	workflowRunStateStore = nil
-	workflowJobStateStore = nil
+	useStateBackends(t, delivery, nil, nil)
 	eventProcessor = nil
 	githubWebhookSecret = []byte("test-secret")
 
