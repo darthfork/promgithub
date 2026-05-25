@@ -64,7 +64,7 @@ func newDefaultWebhookIngestion() *webhookIngestion {
 	ingestion := &webhookIngestion{
 		secret:        githubWebhookSecret,
 		logger:        logger,
-		deliveryStore: stateStore,
+		deliveryStore: deliveryStateStore,
 		localDeduper:  deliveryDeduperCache,
 		dispatcher:    defaultWebhookEventDispatcher{},
 		metrics:       defaultMetricRecorder,

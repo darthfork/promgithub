@@ -16,11 +16,6 @@ type runMetricDetails struct {
 	endedAt    string
 }
 
-type runStoreMethods struct {
-	get    func(context.Context, int) (RunState, bool, error)
-	update func(context.Context, int, RunState) error
-}
-
 type runTransitionStore interface {
 	GetRunState(context.Context, int) (RunState, bool, error)
 	UpdateRunState(context.Context, int, RunState) error
@@ -136,16 +131,28 @@ func runDurationSeconds(state RunState) (float64, bool) {
 	return endedAt.Sub(startedAt).Seconds(), true
 }
 
-type runStoreAdapter struct {
-	methods runStoreMethods
+type workflowRunStateAdapter struct {
+	store workflowRunStateBackend
 }
 
-func (a runStoreAdapter) GetRunState(ctx context.Context, id int) (RunState, bool, error) {
-	return a.methods.get(ctx, id)
+func (a workflowRunStateAdapter) GetRunState(ctx context.Context, id int) (RunState, bool, error) {
+	return a.store.GetWorkflowRun(ctx, id)
 }
 
-func (a runStoreAdapter) UpdateRunState(ctx context.Context, id int, state RunState) error {
-	return a.methods.update(ctx, id, state)
+func (a workflowRunStateAdapter) UpdateRunState(ctx context.Context, id int, state RunState) error {
+	return a.store.UpdateWorkflowRun(ctx, id, state)
+}
+
+type workflowJobStateAdapter struct {
+	store workflowJobStateBackend
+}
+
+func (a workflowJobStateAdapter) GetRunState(ctx context.Context, id int) (RunState, bool, error) {
+	return a.store.GetWorkflowJob(ctx, id)
+}
+
+func (a workflowJobStateAdapter) UpdateRunState(ctx context.Context, id int, state RunState) error {
+	return a.store.UpdateWorkflowJob(ctx, id, state)
 }
 
 type metricRunTransitionRecorder struct {

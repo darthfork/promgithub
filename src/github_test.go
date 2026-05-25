@@ -52,7 +52,9 @@ func resetWebhookTestState() {
 	asyncWorkerCountGauge.Set(0)
 	githubWebhookSecret = []byte("test-secret")
 	logger = zap.NewNop()
-	stateStore = nil
+	deliveryStateStore = nil
+	workflowRunStateStore = nil
+	workflowJobStateStore = nil
 	eventProcessor = nil
 	deliveryDeduperCache = newDeliveryDeduper(defaultDeliveryRetention, defaultDeliveryCacheEntries)
 }
@@ -174,8 +176,7 @@ func TestUnknownEvent(t *testing.T) {
 
 func TestDuplicateDeliveryIsIgnored(t *testing.T) {
 	resetWebhookTestState()
-	stateStore = newInMemoryStateStore()
-	defer func() { stateStore = nil }()
+	useInMemoryStateBackends(t)
 
 	body, err := os.ReadFile("../test_data/workflow_run.json")
 	if err != nil {
@@ -215,8 +216,7 @@ func TestDuplicateDeliveryIsIgnored(t *testing.T) {
 
 func TestDuplicateDeliveryIsDroppedInMetricsEndpoint(t *testing.T) {
 	resetWebhookTestState()
-	stateStore = newInMemoryStateStore()
-	defer func() { stateStore = nil }()
+	useInMemoryStateBackends(t)
 
 	body, err := os.ReadFile("../test_data/workflow_run.json")
 	if err != nil {

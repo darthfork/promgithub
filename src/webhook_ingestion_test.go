@@ -170,6 +170,38 @@ func TestWebhookIngestionEnqueuesAcceptedEvent(t *testing.T) {
 	}
 }
 
+func TestDefaultWebhookIngestionUsesDeliveryStateWithoutRunState(t *testing.T) {
+	oldDeliveryStore := deliveryStateStore
+	oldWorkflowRunStore := workflowRunStateStore
+	oldWorkflowJobStore := workflowJobStateStore
+	oldProcessor := eventProcessor
+	oldSecret := githubWebhookSecret
+	t.Cleanup(func() {
+		deliveryStateStore = oldDeliveryStore
+		workflowRunStateStore = oldWorkflowRunStore
+		workflowJobStateStore = oldWorkflowJobStore
+		eventProcessor = oldProcessor
+		githubWebhookSecret = oldSecret
+	})
+
+	delivery := &fakeDeliveryMarker{created: true}
+	deliveryStateStore = delivery
+	workflowRunStateStore = nil
+	workflowJobStateStore = nil
+	eventProcessor = nil
+	githubWebhookSecret = []byte("test-secret")
+
+	ingestion := newDefaultWebhookIngestion()
+	result := ingestion.Accept(context.Background(), signedWorkflowRunWebhookRequest([]byte(`{"ok":true}`)))
+
+	if result.StatusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, result.StatusCode)
+	}
+	if len(delivery.calls) != 1 || delivery.calls[0] != "delivery-1" {
+		t.Fatalf("expected delivery state to record delivery-1, got %#v", delivery.calls)
+	}
+}
+
 func TestWebhookIngestionReturnsUnavailableWhenQueueIsFull(t *testing.T) {
 	ingestion, _, dispatcher, _ := newTestWebhookIngestion()
 	ingestion.queue = &fakeWebhookQueue{err: errors.New("queue full")}

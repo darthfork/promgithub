@@ -88,8 +88,10 @@ const (
 )
 
 var (
-	stateStore     StateStore
-	eventProcessor *asyncEventProcessor
+	deliveryStateStore    deliveryStateBackend
+	workflowRunStateStore workflowRunStateBackend
+	workflowJobStateStore workflowJobStateBackend
+	eventProcessor        *asyncEventProcessor
 )
 
 func validateHMAC(body []byte, signature string, secret []byte) bool {
@@ -182,17 +184,12 @@ func updateTrackedRunMetrics(
 	ctx context.Context,
 	id int,
 	details runMetricDetails,
-	store runStoreMethods,
+	store runTransitionStore,
 	entityName string,
 	metricKind runMetricKind,
 ) {
-	var storeAdapter runTransitionStore
-	if stateStore != nil {
-		storeAdapter = runStoreAdapter{methods: store}
-	}
-
 	processor := &runTransitionProcessor{
-		store:      storeAdapter,
+		store:      store,
 		recorder:   metricRunTransitionRecorder{kind: metricKind, recorder: defaultMetricRecorder},
 		logger:     logger,
 		entityName: entityName,
@@ -200,26 +197,20 @@ func updateTrackedRunMetrics(
 	processor.Apply(ctx, id, details)
 }
 
-func workflowRunStoreMethods() runStoreMethods {
-	return runStoreMethods{
-		get: func(ctx context.Context, id int) (RunState, bool, error) {
-			return stateStore.GetWorkflowRun(ctx, id)
-		},
-		update: func(ctx context.Context, id int, state RunState) error {
-			return stateStore.UpdateWorkflowRun(ctx, id, state)
-		},
+func workflowRunTransitionStore() runTransitionStore {
+	if workflowRunStateStore == nil {
+		return nil
 	}
+
+	return workflowRunStateAdapter{store: workflowRunStateStore}
 }
 
-func workflowJobStoreMethods() runStoreMethods {
-	return runStoreMethods{
-		get: func(ctx context.Context, id int) (RunState, bool, error) {
-			return stateStore.GetWorkflowJob(ctx, id)
-		},
-		update: func(ctx context.Context, id int, state RunState) error {
-			return stateStore.UpdateWorkflowJob(ctx, id, state)
-		},
+func workflowJobTransitionStore() runTransitionStore {
+	if workflowJobStateStore == nil {
+		return nil
 	}
+
+	return workflowJobStateAdapter{store: workflowJobStateStore}
 }
 
 func updateWorkflowMetrics(ctx context.Context, body []byte) {
@@ -242,7 +233,7 @@ func updateWorkflowMetrics(ctx context.Context, body []byte) {
 			startedAt:  payload.Workflow.CreatedAt,
 			endedAt:    payload.Workflow.UpdatedAt,
 		},
-		workflowRunStoreMethods(),
+		workflowRunTransitionStore(),
 		githubEventWorkflowRun,
 		runMetricKindWorkflow,
 	)
@@ -268,7 +259,7 @@ func updateJobMetrics(ctx context.Context, body []byte) {
 			startedAt:  payload.Job.StartedAt,
 			endedAt:    payload.Job.CompletedAt,
 		},
-		workflowJobStoreMethods(),
+		workflowJobTransitionStore(),
 		githubEventWorkflowJob,
 		runMetricKindJob,
 	)
