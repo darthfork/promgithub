@@ -12,10 +12,93 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
+// These stores are intentionally parallel so each test satisfies only the run-state interface it exercises.
+type workflowRunOnlyTestStore struct {
+	state   RunState
+	found   bool
+	updates []RunState
+}
+
+func (s *workflowRunOnlyTestStore) GetWorkflowRun(_ context.Context, _ int) (RunState, bool, error) {
+	return s.state, s.found, nil
+}
+
+func (s *workflowRunOnlyTestStore) UpdateWorkflowRun(_ context.Context, _ int, state RunState) error {
+	s.state = state
+	s.found = true
+	s.updates = append(s.updates, state)
+	return nil
+}
+
+type workflowJobOnlyTestStore struct {
+	state   RunState
+	found   bool
+	updates []RunState
+}
+
+func (s *workflowJobOnlyTestStore) GetWorkflowJob(_ context.Context, _ int) (RunState, bool, error) {
+	return s.state, s.found, nil
+}
+
+func (s *workflowJobOnlyTestStore) UpdateWorkflowJob(_ context.Context, _ int, state RunState) error {
+	s.state = state
+	s.found = true
+	s.updates = append(s.updates, state)
+	return nil
+}
+
 func withInMemoryStateStore(t *testing.T) {
-	oldStore := stateStore
-	stateStore = newInMemoryStateStore()
-	t.Cleanup(func() { stateStore = oldStore })
+	t.Helper()
+	useInMemoryStateBackends(t)
+}
+
+func TestWorkflowMetricsUseWorkflowRunStateWithoutDeliveryState(t *testing.T) {
+	store := &workflowRunOnlyTestStore{}
+	useStateBackends(t, nil, store, nil)
+
+	workflowStatusCounter.Reset()
+	workflowQueuedGauge.Reset()
+	workflowInProgressGauge.Reset()
+	workflowCompletedGauge.Reset()
+	workflowDurationHistogram.Reset()
+
+	body, err := os.ReadFile("../test_data/workflow_run.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+	updateWorkflowMetrics(context.Background(), body)
+
+	assertCompletedStateUpdate(t, "workflow run", store.updates)
+}
+
+func TestJobMetricsUseWorkflowJobStateWithoutDeliveryOrRunState(t *testing.T) {
+	store := &workflowJobOnlyTestStore{}
+	useStateBackends(t, nil, nil, store)
+
+	jobStatusCounter.Reset()
+	jobQueuedGauge.Reset()
+	jobInProgressGauge.Reset()
+	jobCompletedGauge.Reset()
+	jobDurationHistogram.Reset()
+
+	body, err := os.ReadFile("../test_data/workflow_job.json")
+	if err != nil {
+		t.Fatalf("Failed to read test data file: %v", err)
+	}
+	updateJobMetrics(context.Background(), body)
+
+	assertCompletedStateUpdate(t, "workflow job", store.updates)
+}
+
+func assertCompletedStateUpdate(t *testing.T, entity string, updates []RunState) {
+	t.Helper()
+
+	if len(updates) != 1 {
+		t.Fatalf("expected one %s state update, got %d", entity, len(updates))
+	}
+	if updates[0].Status != statusCompleted || updates[0].Conclusion != testConclusionSuccess {
+		t.Fatalf("expected completed %s state, got %#v", entity, updates[0])
+	}
 }
 
 func TestWorkflowStatusCounter(t *testing.T) {

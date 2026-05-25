@@ -196,9 +196,14 @@ func TestIntegrationDuplicateDeliveryDoesNotInflateMetrics(t *testing.T) {
 }
 
 func TestIntegrationDeliveryStoreFailurePreventsWebhookProcessing(t *testing.T) {
-	server := newIntegrationTestServerWithStateStore(t, asyncProcessorConfig{WorkerCount: 1, QueueSize: 8}, failingDeliveryStateStore{
-		inMemoryStateStore: newInMemoryStateStore(),
-	})
+	runStore := newInMemoryStateStore()
+	server := newIntegrationTestServerWithStateBackends(
+		t,
+		asyncProcessorConfig{WorkerCount: 1, QueueSize: 8},
+		failingDeliveryStore{},
+		runStore,
+		runStore,
+	)
 	defer server.Close()
 
 	body := mustReadFixture(t, "workflow_run.json")
@@ -378,12 +383,33 @@ func newIntegrationTestServerWithAsyncConfig(t *testing.T, cfg asyncProcessorCon
 	return newIntegrationTestServerWithStateStore(t, cfg, newInMemoryStateStore())
 }
 
-func newIntegrationTestServerWithStateStore(t *testing.T, cfg asyncProcessorConfig, store StateStore) *httptest.Server {
+func newIntegrationTestServerWithStateStore(
+	t *testing.T,
+	cfg asyncProcessorConfig,
+	store interface {
+		deliveryStateBackend
+		workflowRunStateBackend
+		workflowJobStateBackend
+	},
+) *httptest.Server {
+	t.Helper()
+	return newIntegrationTestServerWithStateBackends(t, cfg, store, store, store)
+}
+
+func newIntegrationTestServerWithStateBackends(
+	t *testing.T,
+	cfg asyncProcessorConfig,
+	deliveryStore deliveryStateBackend,
+	workflowRunStore workflowRunStateBackend,
+	workflowJobStore workflowJobStateBackend,
+) *httptest.Server {
 	t.Helper()
 	resetIntegrationTestMetrics()
 
 	githubWebhookSecret = []byte("integration-test-secret")
-	stateStore = store
+	deliveryStateStore = deliveryStore
+	workflowRunStateStore = workflowRunStore
+	workflowJobStateStore = workflowJobStore
 	eventProcessor = newAsyncEventProcessor(cfg, zap.NewNop())
 	eventProcessor.Start()
 	t.Cleanup(func() {
@@ -391,18 +417,18 @@ func newIntegrationTestServerWithStateStore(t *testing.T, cfg asyncProcessorConf
 			eventProcessor.Stop()
 		}
 		eventProcessor = nil
-		stateStore = nil
+		deliveryStateStore = nil
+		workflowRunStateStore = nil
+		workflowJobStateStore = nil
 	})
 
 	router := setupRouter(zap.NewNop(), defaultServiceMetrics, prometheus.DefaultGatherer)
 	return httptest.NewServer(router)
 }
 
-type failingDeliveryStateStore struct {
-	*inMemoryStateStore
-}
+type failingDeliveryStore struct{}
 
-func (s failingDeliveryStateStore) MarkDeliveryProcessed(context.Context, string) (bool, error) {
+func (s failingDeliveryStore) MarkDeliveryProcessed(context.Context, string) (bool, error) {
 	return false, errors.New("delivery store unavailable")
 }
 

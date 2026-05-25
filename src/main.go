@@ -249,12 +249,15 @@ func main() {
 		logger.Fatal("Invalid Redis configuration", zap.Error(err))
 	}
 	if redisEnabled {
-		stateStore, err = NewRedisStateStore(redisConfig)
+		redisStore, err := NewRedisStateStore(redisConfig)
 		if err != nil {
 			logger.Fatal("Unable to initialize Redis state store", zap.Error(err))
 		}
+		deliveryStateStore = redisStore
+		workflowRunStateStore = redisStore
+		workflowJobStateStore = redisStore
 		defer func() {
-			if closeErr := stateStore.Close(); closeErr != nil {
+			if closeErr := redisStore.Close(); closeErr != nil {
 				logger.Warn("Failed to close Redis state store", zap.Error(closeErr))
 			}
 		}()

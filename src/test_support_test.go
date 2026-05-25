@@ -1,6 +1,9 @@
 package main
 
-import "context"
+import (
+	"context"
+	"testing"
+)
 
 const testConclusionSuccess = "success"
 
@@ -16,6 +19,34 @@ func newInMemoryStateStore() *inMemoryStateStore {
 		workflow:   map[int]RunState{},
 		jobs:       map[int]RunState{},
 	}
+}
+
+func useInMemoryStateBackends(t *testing.T) {
+	t.Helper()
+
+	store := newInMemoryStateStore()
+	useStateBackends(t, store, store, store)
+}
+
+func useStateBackends(
+	t *testing.T,
+	deliveryStore deliveryStateBackend,
+	workflowRunStore workflowRunStateBackend,
+	workflowJobStore workflowJobStateBackend,
+) {
+	t.Helper()
+
+	oldDeliveryStore := deliveryStateStore
+	oldWorkflowRunStore := workflowRunStateStore
+	oldWorkflowJobStore := workflowJobStateStore
+	deliveryStateStore = deliveryStore
+	workflowRunStateStore = workflowRunStore
+	workflowJobStateStore = workflowJobStore
+	t.Cleanup(func() {
+		deliveryStateStore = oldDeliveryStore
+		workflowRunStateStore = oldWorkflowRunStore
+		workflowJobStateStore = oldWorkflowJobStore
+	})
 }
 
 func (s *inMemoryStateStore) MarkDeliveryProcessed(_ context.Context, deliveryID string) (bool, error) {

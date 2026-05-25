@@ -151,18 +151,32 @@ func newRedisIntegrationStore(t *testing.T) *RedisStateStore {
 	return store
 }
 
-func newRedisIntegrationTestServer(t *testing.T, store StateStore) *httptest.Server {
+func newRedisIntegrationTestServer(t *testing.T, store *RedisStateStore) *httptest.Server {
+	t.Helper()
+	return newRedisIntegrationTestServerWithStateBackends(t, store, store, store)
+}
+
+func newRedisIntegrationTestServerWithStateBackends(
+	t *testing.T,
+	deliveryStore deliveryStateBackend,
+	workflowRunStore workflowRunStateBackend,
+	workflowJobStore workflowJobStateBackend,
+) *httptest.Server {
 	t.Helper()
 	resetIntegrationTestMetrics()
 
 	githubWebhookSecret = []byte("integration-test-secret")
-	stateStore = store
+	deliveryStateStore = deliveryStore
+	workflowRunStateStore = workflowRunStore
+	workflowJobStateStore = workflowJobStore
 	eventProcessor = newAsyncEventProcessor(asyncProcessorConfig{WorkerCount: 1, QueueSize: 8}, zap.NewNop())
 	eventProcessor.Start()
 	t.Cleanup(func() {
 		eventProcessor.Stop()
 		eventProcessor = nil
-		stateStore = nil
+		deliveryStateStore = nil
+		workflowRunStateStore = nil
+		workflowJobStateStore = nil
 	})
 
 	router := setupRouter(zap.NewNop(), defaultServiceMetrics, prometheus.DefaultGatherer)
