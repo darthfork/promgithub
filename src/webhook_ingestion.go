@@ -66,7 +66,7 @@ func newDefaultWebhookIngestion() *webhookIngestion {
 		logger:        logger,
 		deliveryStore: deliveryStateStore,
 		localDeduper:  deliveryDeduperCache,
-		dispatcher:    defaultWebhookEventDispatcher{},
+		dispatcher:    newDefaultGitHubEventDispatcher(),
 		metrics:       defaultMetricRecorder,
 		now:           time.Now,
 	}
@@ -169,25 +169,6 @@ func (i *webhookIngestion) logError(message string, fields ...zap.Field) {
 	if i.logger != nil {
 		i.logger.Error(message, fields...)
 	}
-}
-
-type defaultWebhookEventDispatcher struct{}
-
-func (defaultWebhookEventDispatcher) Dispatch(ctx context.Context, eventType string, body []byte) bool {
-	switch eventType {
-	case githubEventWorkflowRun:
-		updateWorkflowMetrics(ctx, body)
-	case githubEventWorkflowJob:
-		updateJobMetrics(ctx, body)
-	case githubEventPush:
-		updateCommitMetrics(body)
-	case githubEventPullRequest:
-		updatePullRequestMetrics(body)
-	default:
-		return false
-	}
-
-	return true
 }
 
 func webhookHTTPHandler(acceptor webhookAcceptor, logger *zap.Logger) http.HandlerFunc {

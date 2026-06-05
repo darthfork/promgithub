@@ -258,14 +258,14 @@ func TestIntegrationAsyncQueueFullReturnsUnavailableAndExposesQueueDropMetrics(t
 
 	started := make(chan struct{})
 	unblock := make(chan struct{})
-	eventProcessor.processFn["workflow_run"] = func(_ context.Context, _ []byte) {
+	useWorkflowRunAsyncEventHandler(eventProcessor, func(_ context.Context, _ []byte) {
 		select {
 		case <-started:
 		default:
 			close(started)
 		}
 		<-unblock
-	}
+	})
 	t.Cleanup(func() {
 		select {
 		case <-unblock:
@@ -301,13 +301,13 @@ func TestIntegrationAsyncProcessingFailureIsVisibleAndWorkerContinues(t *testing
 	defer server.Close()
 
 	var attempts atomic.Int32
-	eventProcessor.processFn["workflow_run"] = func(ctx context.Context, body []byte) {
+	useWorkflowRunAsyncEventHandler(eventProcessor, func(ctx context.Context, body []byte) {
 		if attempts.Add(1) == 1 {
 			panic("synthetic async processor failure")
 		}
 
 		updateWorkflowMetrics(ctx, body)
-	}
+	})
 
 	body := mustReadFixture(t, "workflow_run.json")
 	first := sendWebhookRequest(t, server.URL, "workflow_run", body, "delivery-failure-1")
@@ -333,7 +333,7 @@ func TestIntegrationAsyncShutdownDrainsQueuedEvents(t *testing.T) {
 
 	started := make(chan struct{})
 	unblock := make(chan struct{})
-	eventProcessor.processFn["workflow_run"] = func(ctx context.Context, body []byte) {
+	useWorkflowRunAsyncEventHandler(eventProcessor, func(ctx context.Context, body []byte) {
 		select {
 		case <-started:
 		default:
@@ -341,7 +341,7 @@ func TestIntegrationAsyncShutdownDrainsQueuedEvents(t *testing.T) {
 		}
 		<-unblock
 		updateWorkflowMetrics(ctx, body)
-	}
+	})
 	t.Cleanup(func() {
 		select {
 		case <-unblock:

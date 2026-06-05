@@ -29,11 +29,11 @@ type asyncProcessorConfig struct {
 }
 
 type asyncEventProcessor struct {
-	queue     chan webhookEvent
-	workers   int
-	processFn map[string]eventHandler
-	logger    *zap.Logger
-	wg        sync.WaitGroup
+	queue      chan webhookEvent
+	workers    int
+	dispatcher webhookEventDispatcher
+	logger     *zap.Logger
+	wg         sync.WaitGroup
 }
 
 func newAsyncProcessorConfigFromEnv() (asyncProcessorConfig, error) {
@@ -58,15 +58,10 @@ func newAsyncProcessorConfigFromEnv() (asyncProcessorConfig, error) {
 
 func newAsyncEventProcessor(cfg asyncProcessorConfig, logger *zap.Logger) *asyncEventProcessor {
 	processor := &asyncEventProcessor{
-		queue:   make(chan webhookEvent, cfg.QueueSize),
-		workers: cfg.WorkerCount,
-		processFn: map[string]eventHandler{
-			"workflow_run": updateWorkflowMetrics,
-			"workflow_job": updateJobMetrics,
-			"push":         func(_ context.Context, body []byte) { updateCommitMetrics(body) },
-			"pull_request": func(_ context.Context, body []byte) { updatePullRequestMetrics(body) },
-		},
-		logger: logger,
+		queue:      make(chan webhookEvent, cfg.QueueSize),
+		workers:    cfg.WorkerCount,
+		dispatcher: newDefaultGitHubEventDispatcher(),
+		logger:     logger,
 	}
 
 	defaultMetricRecorder.SetAsyncWorkerCount(cfg.WorkerCount)
@@ -114,12 +109,6 @@ func (p *asyncEventProcessor) runWorker(workerID int) {
 		defaultMetricRecorder.SetAsyncQueueDepth(len(p.queue))
 		start := time.Now()
 
-		processor, ok := p.processFn[event.eventType]
-		if !ok {
-			defaultMetricRecorder.RecordAsyncUnsupportedEvent(event.eventType)
-			continue
-		}
-
 		func() {
 			defer func() {
 				if recovered := recover(); recovered != nil {
@@ -132,7 +121,11 @@ func (p *asyncEventProcessor) runWorker(workerID int) {
 				}
 			}()
 
-			processor(event.ctx, event.body)
+			if p.dispatcher == nil || !p.dispatcher.Dispatch(event.ctx, event.eventType, event.body) {
+				defaultMetricRecorder.RecordAsyncUnsupportedEvent(event.eventType)
+				return
+			}
+
 			defaultMetricRecorder.RecordAsyncProcessedEvent(event.eventType)
 			defaultMetricRecorder.ObserveAsyncProcessingDuration(event.eventType, time.Since(start).Seconds())
 		}()
