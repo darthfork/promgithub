@@ -259,9 +259,9 @@ func TestWebhookIsAcceptedWhenAsyncProcessorEnabled(t *testing.T) {
 
 	processed := make(chan struct{}, 1)
 	eventProcessor = newAsyncEventProcessor(asyncProcessorConfig{WorkerCount: 1, QueueSize: 1}, zap.NewNop())
-	eventProcessor.processFn["workflow_run"] = func(_ context.Context, _ []byte) {
+	useWorkflowRunAsyncEventHandler(eventProcessor, func(_ context.Context, _ []byte) {
 		processed <- struct{}{}
-	}
+	})
 	eventProcessor.Start()
 	defer func() {
 		eventProcessor.Stop()
@@ -288,9 +288,9 @@ func TestWebhookReturnsUnavailableWhenAsyncQueueIsFull(t *testing.T) {
 
 	blocker := make(chan struct{})
 	eventProcessor = newAsyncEventProcessor(asyncProcessorConfig{WorkerCount: 1, QueueSize: 1}, zap.NewNop())
-	eventProcessor.processFn["workflow_run"] = func(_ context.Context, _ []byte) {
+	useWorkflowRunAsyncEventHandler(eventProcessor, func(_ context.Context, _ []byte) {
 		<-blocker
-	}
+	})
 	defer func() {
 		close(blocker)
 		eventProcessor.Stop()

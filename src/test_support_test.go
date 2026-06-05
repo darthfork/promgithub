@@ -49,6 +49,14 @@ func useStateBackends(
 	})
 }
 
+func useWorkflowRunAsyncEventHandler(processor *asyncEventProcessor, handler eventHandler) {
+	processor.dispatcher = githubEventDispatcher{
+		handlers: map[string]eventHandler{
+			githubEventWorkflowRun: handler,
+		},
+	}
+}
+
 func (s *inMemoryStateStore) MarkDeliveryProcessed(_ context.Context, deliveryID string) (bool, error) {
 	if _, ok := s.deliveries[deliveryID]; ok {
 		return false, nil
