@@ -16,28 +16,19 @@ permissions:
   security-events: write
 
 jobs:
-  unit-and-build:
-    name: build and test
+  fast-pr-lane:
+    name: Fast PR lane
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup environment
-        id: environment
-        run: |
-          echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
-          echo "DOCKER_CLI_EXPERIMENTAL=enabled" >> $GITHUB_ENV
-
       - name: Set up Golang
         uses: actions/setup-go@v5
         id: go
         with:
           go-version-file: .go-version
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Install Tools and Dependencies
         run: make install_tools
@@ -54,37 +45,14 @@ jobs:
       - name: Unit Tests
         run: make unit-test
 
+      - name: In-process Integration Tests
+        run: make integration-test
+
       - name: Coverage
         run: make coverage
 
-      - name: Build Container
-        run: make container
-
-      - name: Container Security Scan
-        run: make container-security
-
-  integration-tests:
-    name: Integration tests
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Golang
-        uses: actions/setup-go@v5
-        id: go
-        with:
-          go-version-file: .go-version
-
-      - name: Install Tools and Dependencies
-        run: make deps
-
-      - name: Integration Tests
-        run: make integration-test
-
-  redis-integration-tests:
-    name: Redis integration tests
+  medium-redis-lane:
+    name: Medium Redis lane
     runs-on: ubuntu-24.04
 
     services:
@@ -118,3 +86,36 @@ jobs:
 
       - name: Redis Integration Tests
         run: make redis-integration-test
+
+  deep-container-lane:
+    name: Deep container lane
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        id: environment
+        run: |
+          echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
+          echo "DOCKER_CLI_EXPERIMENTAL=enabled" >> $GITHUB_ENV
+
+      - name: Set up Golang
+        uses: actions/setup-go@v5
+        id: go
+        with:
+          go-version-file: .go-version
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install Tools and Dependencies
+        run: make install_tools
+
+      - name: Build Container
+        run: make container
+
+      - name: Container Security Scan
+        run: make container-security
