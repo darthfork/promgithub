@@ -34,12 +34,20 @@ It is designed to be simple to deploy and can run either:
 | `promgithub_event_processing_duration_seconds` | Histogram | `event_type` | Duration of async webhook event processing |
 | `promgithub_duplicate_deliveries_seen_total` | Counter | `event_type` | Duplicate webhook deliveries observed |
 | `promgithub_duplicate_deliveries_dropped_total` | Counter | `event_type` | Duplicate webhook deliveries dropped |
+| `promgithub_event_filtered_total` | Counter | `event_type`, `reason` | Webhook events dropped by the configured label policy |
 
 ## Metric model
 
 The exporter focuses on repository and workflow health signals while avoiding noisy per-entity labels such as runner names, job names, commit author identities, and pull request authors.
 
 This keeps the default metric set compact and practical for Prometheus while still preserving the `branch` label for branch-specific workflow and job visibility.
+
+Operators can further bound series growth without a code change:
+
+- Filter repositories, branches, and workflows with allowlists, denylists, and regular expressions.
+- Optionally normalize branch labels into `default`, `release`, and `feature` classes.
+
+These controls are off by default so existing scrapes keep raw branch names. See [Usage documentation](./docs/usage.md#label-normalization-and-event-filtering) for recommended production settings.
 
 ## Redis-backed multi-instance mode
 

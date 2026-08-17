@@ -244,6 +244,13 @@ func main() {
 	}
 	githubWebhookSecret = []byte(ghWebhookSecretEnv)
 
+	labelPolicy, err := loadLabelPolicyFromEnv()
+	if err != nil {
+		logger.Fatal("Invalid label policy configuration", zap.Error(err))
+	}
+	defaultLabelPolicy = labelPolicy
+	logLabelPolicy(logger, labelPolicy)
+
 	redisConfig, redisEnabled, err := loadRedisConfigFromEnv()
 	if err != nil {
 		logger.Fatal("Invalid Redis configuration", zap.Error(err))

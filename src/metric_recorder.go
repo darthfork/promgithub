@@ -16,6 +16,10 @@ func (prometheusMetricRecorder) RecordDuplicateDelivery(eventType string) {
 	duplicateDeliveriesDroppedCounter.WithLabelValues(eventType).Inc()
 }
 
+func (prometheusMetricRecorder) RecordFilteredEvent(eventType, reason string) {
+	filteredEventsCounter.WithLabelValues(eventType, reason).Inc()
+}
+
 func (prometheusMetricRecorder) RecordCommitPushed(repository string) {
 	commitPushedCounter.WithLabelValues(repository).Inc()
 }

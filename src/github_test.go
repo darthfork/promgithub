@@ -47,6 +47,8 @@ func resetWebhookTestState() {
 	asyncProcessingDurationHistogram.Reset()
 	duplicateDeliveriesSeenCounter.Reset()
 	duplicateDeliveriesDroppedCounter.Reset()
+	filteredEventsCounter.Reset()
+	defaultLabelPolicy = labelPolicy{}
 	asyncQueueDepthGauge.Set(0)
 	asyncQueueCapacityGauge.Set(0)
 	asyncWorkerCountGauge.Set(0)

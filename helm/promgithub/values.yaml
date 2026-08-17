@@ -46,6 +46,18 @@ redisConfig:
   keyPrefix: promgithub
   deliveryTTL: 24h
 
+# Optional controls for metric cardinality. Empty filters keep current behavior.
+labelPolicy:
+  repoAllowlist: ""
+  repoDenylist: ""
+  branchAllowRegex: ""
+  branchDenyRegex: ""
+  workflowAllowRegex: ""
+  workflowDenyRegex: ""
+  normalizeBranches: false
+  defaultBranches: "main,master"
+  releaseBranchRegex: "^(release/|hotfix/).+"
+
 # This is for setting up the promgithub service
 service:
   # This sets the service type

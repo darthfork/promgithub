@@ -54,6 +54,26 @@ spec:
             - name: PROMGITHUB_REDIS_DELIVERY_TTL
               value: "{{ .Values.redisConfig.deliveryTTL | default "24h" }}"
             {{- end }}
+            {{- with .Values.labelPolicy }}
+            - name: PROMGITHUB_REPO_ALLOWLIST
+              value: "{{ .repoAllowlist }}"
+            - name: PROMGITHUB_REPO_DENYLIST
+              value: "{{ .repoDenylist }}"
+            - name: PROMGITHUB_BRANCH_ALLOW_REGEX
+              value: {{ .branchAllowRegex | quote }}
+            - name: PROMGITHUB_BRANCH_DENY_REGEX
+              value: {{ .branchDenyRegex | quote }}
+            - name: PROMGITHUB_WORKFLOW_ALLOW_REGEX
+              value: {{ .workflowAllowRegex | quote }}
+            - name: PROMGITHUB_WORKFLOW_DENY_REGEX
+              value: {{ .workflowDenyRegex | quote }}
+            - name: PROMGITHUB_NORMALIZE_BRANCHES
+              value: "{{ .normalizeBranches }}"
+            - name: PROMGITHUB_DEFAULT_BRANCHES
+              value: "{{ .defaultBranches | default "main,master" }}"
+            - name: PROMGITHUB_RELEASE_BRANCH_REGEX
+              value: {{ .releaseBranchRegex | default "^(release/|hotfix/).+" | quote }}
+            {{- end }}
           envFrom:
             - secretRef:
                 name: "{{ include "promgithub.fullname" . }}"

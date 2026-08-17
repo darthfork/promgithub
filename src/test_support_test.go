@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"regexp"
 	"testing"
 )
 
@@ -47,6 +48,29 @@ func useStateBackends(
 		workflowRunStateStore = oldWorkflowRunStore
 		workflowJobStateStore = oldWorkflowJobStore
 	})
+}
+
+func useLabelPolicy(t *testing.T, policy labelPolicy) {
+	t.Helper()
+
+	previous := defaultLabelPolicy
+	defaultLabelPolicy = policy
+	t.Cleanup(func() {
+		defaultLabelPolicy = previous
+	})
+}
+
+func testLabelPolicy(t *testing.T, mutate func(*labelPolicy)) labelPolicy {
+	t.Helper()
+
+	policy := labelPolicy{
+		defaultBranches: parseSetList(defaultBranchList),
+		releaseBranch:   regexp.MustCompile(defaultReleaseBranchRE),
+	}
+	if mutate != nil {
+		mutate(&policy)
+	}
+	return policy
 }
 
 func useWorkflowRunAsyncEventHandler(processor *asyncEventProcessor, handler eventHandler) {

@@ -23,8 +23,49 @@ The service supports the following environment variables:
 - `PROMGITHUB_REDIS_DELIVERY_TTL` (optional): TTL for webhook delivery dedupe keys, default `24h`.
 - `PROMGITHUB_EVENT_WORKERS` (optional): Number of async webhook processing workers, default `4`.
 - `PROMGITHUB_EVENT_QUEUE_SIZE` (optional): Bounded async webhook queue size, default `256`.
+- `PROMGITHUB_REPO_ALLOWLIST` (optional): Comma-separated `owner/repo` list. When set, only these repositories are recorded.
+- `PROMGITHUB_REPO_DENYLIST` (optional): Comma-separated `owner/repo` list. Matching repositories are dropped.
+- `PROMGITHUB_BRANCH_ALLOW_REGEX` (optional): If set, only events whose branch matches this regular expression are recorded.
+- `PROMGITHUB_BRANCH_DENY_REGEX` (optional): If set, events whose branch matches this regular expression are dropped.
+- `PROMGITHUB_WORKFLOW_ALLOW_REGEX` (optional): If set, only workflow and job events whose workflow name matches are recorded. Push and pull request events skip this filter.
+- `PROMGITHUB_WORKFLOW_DENY_REGEX` (optional): If set, matching workflow and job events are dropped.
+- `PROMGITHUB_NORMALIZE_BRANCHES` (optional): When `true`, replace raw branch labels with `default`, `release`, or `feature`. Default `false`.
+- `PROMGITHUB_DEFAULT_BRANCHES` (optional): Comma-separated branch names classified as `default` when normalization is enabled. Default `main,master`.
+- `PROMGITHUB_RELEASE_BRANCH_REGEX` (optional): Branches matching this expression are classified as `release` when normalization is enabled. Default `^(release/|hotfix/).+`.
 
 If Redis is configured, the service stores delivery and run state in Redis.
+
+### Label normalization and event filtering
+
+Filtered events are still signature-checked, deduplicated, and acknowledged so GitHub does not retry them. They do not update business metrics or run state. Drops are counted on `promgithub_event_filtered_total{event_type,reason}` with `reason` of `repository`, `branch`, or `workflow`.
+
+Branch filters apply to:
+
+- workflow and job `head_branch`
+- push refs after stripping `refs/heads/` or `refs/tags/`
+- pull request `base` refs
+
+Allowlists and denylists can be combined. A repository must be in the allowlist when one is set, and must not be in the denylist.
+
+Enabling `PROMGITHUB_NORMALIZE_BRANCHES` changes the `branch` and `base_branch` label values:
+
+| Class | Default match |
+| --- | --- |
+| `default` | `main` or `master`, or names in `PROMGITHUB_DEFAULT_BRANCHES` |
+| `release` | `release/*` or `hotfix/*`, or `PROMGITHUB_RELEASE_BRANCH_REGEX` |
+| `feature` | every other non-empty branch |
+
+This is a scrape-breaking change for existing dashboards. Enable it on new deployments, or expect old raw-branch series to go stale.
+
+Recommended production starting point for a multi-repo organization:
+
+```bash
+PROMGITHUB_REPO_ALLOWLIST="acme/api,acme/web,acme/worker"
+PROMGITHUB_BRANCH_DENY_REGEX="^(dependabot/|renovate/)"
+PROMGITHUB_NORMALIZE_BRANCHES="true"
+```
+
+Keep `PROMGITHUB_NORMALIZE_BRANCHES=false` when you still need per-branch workflow health. In that case, prefer `PROMGITHUB_BRANCH_ALLOW_REGEX` such as `^(main|release/.+)$` so feature-branch series do not accumulate.
 
 ### Async processing and backpressure
 
@@ -160,6 +201,10 @@ promgithub:
     db: 0
     keyPrefix: promgithub
     deliveryTTL: 24h
+  labelPolicy:
+    repoAllowlist: "acme/api,acme/web"
+    branchDenyRegex: "^(dependabot/|renovate/)"
+    normalizeBranches: true
 ```
 
 When `redis.enabled=true`, the chart deploys Redis as a dependency and configures `promgithub` to connect to it automatically.

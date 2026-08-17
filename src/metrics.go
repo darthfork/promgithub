@@ -183,4 +183,12 @@ var (
 		},
 		[]string{"event_type"},
 	)
+
+	filteredEventsCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "promgithub_event_filtered_total",
+			Help: "Total number of webhook events dropped by the configured label policy",
+		},
+		[]string{"event_type", "reason"},
+	)
 )

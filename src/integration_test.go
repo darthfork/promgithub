@@ -88,6 +88,44 @@ func TestIntegrationWebhookMetrics(t *testing.T) {
 	}
 }
 
+func TestIntegrationLabelPolicyFiltersDeniedRepository(t *testing.T) {
+	server := newIntegrationTestServer(t)
+	defer server.Close()
+	useLabelPolicy(t, testLabelPolicy(t, func(policy *labelPolicy) {
+		policy.repoDeny = parseSetList("user/repo")
+	}))
+
+	body := mustReadFixture(t, "workflow_run.json")
+	resp := sendWebhookRequest(t, server.URL, githubEventWorkflowRun, body, "delivery-filtered")
+	assertResponseStatus(t, resp, http.StatusAccepted)
+
+	metrics := waitForMetricsSubstring(t, server.URL, `promgithub_event_filtered_total{event_type="workflow_run",reason="repository"} 1`)
+	if !strings.Contains(metrics, `promgithub_event_filtered_total{event_type="workflow_run",reason="repository"} 1`) {
+		t.Fatalf("expected filtered event metric, got:\n%s", metrics)
+	}
+	if strings.Contains(metrics, `promgithub_workflow_status{branch="main",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1`) {
+		t.Fatalf("denied repository should not record workflow metrics:\n%s", metrics)
+	}
+}
+
+func TestIntegrationLabelPolicyNormalizesDefaultBranch(t *testing.T) {
+	server := newIntegrationTestServer(t)
+	defer server.Close()
+	useLabelPolicy(t, testLabelPolicy(t, func(policy *labelPolicy) {
+		policy.normalizeBranches = true
+	}))
+
+	body := mustReadFixture(t, "workflow_run.json")
+	resp := sendWebhookRequest(t, server.URL, githubEventWorkflowRun, body, "delivery-normalized")
+	assertResponseStatus(t, resp, http.StatusAccepted)
+
+	expected := `promgithub_workflow_status{branch="default",conclusion="success",repository="user/repo",workflow_name="CI",workflow_status="completed"} 1`
+	metrics := waitForMetricsSubstring(t, server.URL, expected)
+	if !strings.Contains(metrics, expected) {
+		t.Fatalf("expected normalized branch label, got:\n%s", metrics)
+	}
+}
+
 func TestIntegrationWebhookInvalidSignature(t *testing.T) {
 	server := newIntegrationTestServer(t)
 	defer server.Close()
@@ -462,6 +500,8 @@ func resetIntegrationTestMetrics() {
 	asyncProcessingDurationHistogram.Reset()
 	duplicateDeliveriesSeenCounter.Reset()
 	duplicateDeliveriesDroppedCounter.Reset()
+	filteredEventsCounter.Reset()
+	defaultLabelPolicy = labelPolicy{}
 	defaultServiceMetrics.apiCallsCounter.Reset()
 	defaultServiceMetrics.requestDurationHistogram.Reset()
 	asyncQueueDepthGauge.Set(0)

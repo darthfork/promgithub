@@ -221,13 +221,22 @@ func updateWorkflowMetrics(ctx context.Context, body []byte) {
 		return
 	}
 
+	labels, ok := applyLabelPolicy(githubEventWorkflowRun, eventLabels{
+		Repository: payload.Workflow.Repository.FullName,
+		Branch:     payload.Workflow.Branch,
+		Workflow:   payload.Workflow.Name,
+	})
+	if !ok {
+		return
+	}
+
 	updateTrackedRunMetrics(
 		ctx,
 		payload.Workflow.RunID,
 		runMetricDetails{
-			repository: payload.Workflow.Repository.FullName,
-			branch:     payload.Workflow.Branch,
-			name:       payload.Workflow.Name,
+			repository: labels.Repository,
+			branch:     labels.Branch,
+			name:       labels.Workflow,
 			status:     payload.Workflow.Status,
 			conclusion: payload.Workflow.Conclusion,
 			startedAt:  payload.Workflow.CreatedAt,
@@ -247,13 +256,22 @@ func updateJobMetrics(ctx context.Context, body []byte) {
 		return
 	}
 
+	labels, ok := applyLabelPolicy(githubEventWorkflowJob, eventLabels{
+		Repository: payload.Job.Repository.FullName,
+		Branch:     payload.Job.Branch,
+		Workflow:   payload.Job.WorkflowName,
+	})
+	if !ok {
+		return
+	}
+
 	updateTrackedRunMetrics(
 		ctx,
 		payload.Job.ID,
 		runMetricDetails{
-			repository: payload.Job.Repository.FullName,
-			branch:     payload.Job.Branch,
-			name:       payload.Job.WorkflowName,
+			repository: labels.Repository,
+			branch:     labels.Branch,
+			name:       labels.Workflow,
 			status:     payload.Job.Status,
 			conclusion: payload.Job.Conclusion,
 			startedAt:  payload.Job.StartedAt,
@@ -273,6 +291,13 @@ func updateCommitMetrics(body []byte) {
 		return
 	}
 
+	if _, ok := applyLabelPolicy(githubEventPush, eventLabels{
+		Repository: payload.Repository.FullName,
+		Branch:     branchFromRef(payload.Ref),
+	}); !ok {
+		return
+	}
+
 	for range payload.Commits {
 		defaultMetricRecorder.RecordCommitPushed(payload.Repository.FullName)
 	}
@@ -286,9 +311,17 @@ func updatePullRequestMetrics(body []byte) {
 		return
 	}
 
+	labels, ok := applyLabelPolicy(githubEventPullRequest, eventLabels{
+		Repository: payload.Repository.FullName,
+		Branch:     payload.PullRequest.Base.Ref,
+	})
+	if !ok {
+		return
+	}
+
 	defaultMetricRecorder.RecordPullRequest(
-		payload.Repository.FullName,
-		payload.PullRequest.Base.Ref,
+		labels.Repository,
+		labels.Branch,
 		payload.Action,
 	)
 }

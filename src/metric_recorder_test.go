@@ -33,6 +33,21 @@ func TestMetricRecorderPreservesDuplicateDeliveryCardinality(t *testing.T) {
 	}
 }
 
+func TestMetricRecorderCountsFilteredEvents(t *testing.T) {
+	filteredEventsCounter.Reset()
+
+	recorder := prometheusMetricRecorder{}
+	recorder.RecordFilteredEvent(githubEventWorkflowRun, filterReasonRepository)
+
+	if err := testutil.CollectAndCompare(filteredEventsCounter, strings.NewReader(`
+		# HELP promgithub_event_filtered_total Total number of webhook events dropped by the configured label policy
+		# TYPE promgithub_event_filtered_total counter
+		promgithub_event_filtered_total{event_type="workflow_run",reason="repository"} 1
+	`)); err != nil {
+		t.Fatalf("unexpected filtered event metric: %v", err)
+	}
+}
+
 func TestMetricRecorderPreservesRepositoryEventCardinality(t *testing.T) {
 	commitPushedCounter.Reset()
 	pullRequestCounter.Reset()

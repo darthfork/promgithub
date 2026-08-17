@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -42,4 +43,20 @@ func parseEnvDuration(key string, defaultValue time.Duration) (time.Duration, er
 	}
 
 	return parsed, nil
+}
+
+func parseEnvBool(key string, defaultValue bool) (bool, error) {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return defaultValue, nil
+	}
+
+	switch strings.ToLower(value) {
+	case "1", "true", "yes", "on":
+		return true, nil
+	case "0", "false", "no", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("parse %s: invalid boolean %q", key, value)
+	}
 }
