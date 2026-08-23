@@ -10,12 +10,12 @@ source ./version
 # Update chart version
 if sed --version > /dev/null; then
     # Using GNU sed (Linux)
-    sed -i "s/version: .*/version: $VERSION/" helm/promgithub/Chart.yaml
-    sed -i "s/appVersion: .*/appVersion: \"$VERSION\"/" helm/promgithub/Chart.yaml
+    sed -i "s/^version: .*/version: $VERSION/" helm/promgithub/Chart.yaml
+    sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" helm/promgithub/Chart.yaml
 else
     # Using BSD sed (macOS)
-    sed -i '' "s/version: .*/version: $VERSION/" helm/promgithub/Chart.yaml
-    sed -i '' "s/appVersion: .*/appVersion: \"$VERSION\"/" helm/promgithub/Chart.yaml
+    sed -i '' "s/^version: .*/version: $VERSION/" helm/promgithub/Chart.yaml
+    sed -i '' "s/^appVersion: .*/appVersion: \"$VERSION\"/" helm/promgithub/Chart.yaml
 fi
 
 # Run go fmt to format the source code
