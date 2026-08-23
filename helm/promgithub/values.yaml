@@ -65,11 +65,11 @@ resources: {}
 # This is to setup the liveness and readiness probes
 livenessProbe:
   httpGet:
-    path: /
+    path: /health
     port: http
 readinessProbe:
   httpGet:
-    path: /
+    path: /health
     port: http
 
 # This section is for setting up autoscaling
