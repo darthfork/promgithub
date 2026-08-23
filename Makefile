@@ -1,4 +1,4 @@
-.PHONY: build container container-security cross-platform debug release test unit-test integration-test redis-integration-test test-all go-version coverage fmt lint deps security clean dev-setup
+.PHONY: build container container-security container-smoke helm-smoke system-smoke cross-platform debug release test unit-test integration-test redis-integration-test test-all go-version coverage fmt lint deps security clean dev-setup
 
 include version
 
@@ -72,6 +72,14 @@ install_tools: deps ## Install development tooling
 
 container: ## Build promgithub service container
 	@docker build --progress=plain --build-arg GO_VERSION=$(GO_VERSION) -t $(CONTAINER_REGISTRY):$(VERSION) .
+
+container-smoke: container ## Run black-box startup, health, metrics, and webhook checks against the container
+	@SMOKE_IMAGE=$(CONTAINER_REGISTRY):$(VERSION) ./test/system/container-smoke.sh
+
+helm-smoke: container ## Install the chart in kind and smoke test standalone and Redis-backed modes
+	@SMOKE_IMAGE=$(CONTAINER_REGISTRY):$(VERSION) ./test/system/helm-smoke.sh
+
+system-smoke: container-smoke helm-smoke ## Run all black-box container and deployment smoke tests
 
 package-helm-chart: mkdir ## Package promgithub helm chart
 	@helm package $(CHART_SOURCE) -d $(BUILDDIR)

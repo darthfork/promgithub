@@ -8,4 +8,5 @@ trivy-report.json
 secrets-report.json
 *.sarif
 *.tgz
+helm/promgithub/charts/
 values-test.yaml
